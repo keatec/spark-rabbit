@@ -6,19 +6,35 @@ import {
 import {default as Logger} from './logger';
 import uuid = require('uuid');
 
+interface IReceivers {
+  [name: string]: (data: string, ack: () => void) => boolean;
+}
+
+interface IData {
+  // tslint:disable-next-line:no-any
+  [name: string]: any;
+}
+
+interface IQueueElement {
+  name: string;
+  data: IData;
+}
+
+interface IActionData {
+  action: string;
+  answerID: string;
+  answerTo: string;
+  context: IData;
+}
+
 let rabbitConnection: amqp.Connection;
 let mainchannel: amqp.Channel;
 let queues: {
   [name: string]: number,
 } = {};
 
-let receivers: {
-  [name: string]: (data: string, ack: () => void) => boolean;
-} = {};
-
-let newReceivers: {
-  [name: string]: (data: string, ack: () => void) => boolean;
-};
+let newReceivers: IReceivers;
+let receivers: IReceivers = {};
 
 const rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
   ? process.env.HOSTNAME
@@ -36,22 +52,6 @@ logger.info(
   },
   'Creating Rabbit connection',
 );
-
-interface IData {
-  [name: string]: any;
-}
-
-interface IQueueElement {
-  name: string;
-  data: IData;
-}
-
-interface IActionData {
-  action: string;
-  answerID: string;
-  answerTo: string;
-  context: IData;
-}
 
 const pubQ: IQueueElement[] = []; // Publish Queue, to be processed
 
@@ -96,7 +96,7 @@ async function registerReceiver(
       durable: false,
     });
   logger.info({info}, 'Registered');
-  await mainchannel.consume(info.queue, (msg: any) => {
+  await mainchannel.consume(info.queue, (msg: amqp.Message) => {
     try {
       logger.info({msg}, 'Got Message');
       const ack = callback(msg.content.toString(), () => {
@@ -229,7 +229,7 @@ setInterval(() => {
 logger.info('Started');
 
 const userabbit = {
-  registerReceiver(obj: any) {
+  registerReceiver(obj: IReceivers) {
     newReceivers = obj;
   },
   send(name: string, data: IData) {
