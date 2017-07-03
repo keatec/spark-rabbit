@@ -22,7 +22,8 @@
     "amqplib": "^0.5.1",
     "bluebird": "^3.5.0",
     "path": "^0.12.7",
-    "spark-server": "git+https://github.com/Brewskey/spark-server.git#d7a083491a42d1d76c281ffd46b899469cf51a37",
+    "spark-server": "git+https://github.com/Brewskey/spark-server.git#dev",
+    "spark-protocol": "git+https://github.com/Brewskey/spark-protocol.git#dev",
     "typescript": "^2.4.1",
     "uuid": "^3.1.0"
   },
