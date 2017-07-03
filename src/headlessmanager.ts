@@ -1,5 +1,3 @@
-// @flow
-
 import { Event, EventPublisher } from 'spark-protocol';
 import { SPARK_SERVER_EVENTS } from 'spark-protocol';
 import Logger from './lib/logger';

@@ -1,17 +1,25 @@
-
 import {
     defaultBindings,
     Settings,
 } from 'spark-server';
 import Logger from './logger';
 import amqp = require('amqplib');
-import uuid from 'uuid';
+import uuid = require('uuid');
 
 let rabbitConnection;
 let mainchannel;
-let queues = {};
-let receivers = {};
-let newReceivers;
+let queues: {
+  [name: string]: number,
+} = {};
+
+let receivers: {
+  [name: string]: (data: string, ack: () => void) => boolean;
+} = {};
+
+let newReceivers: {
+  [name: string]: (data: string, ack: () => void) => boolean;
+};
+
 const rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
   ? process.env.HOSTNAME
   : process.env.COMPUTERNAME}`;
@@ -29,19 +37,35 @@ logger.info(
   'Creating Rabbit connection',
 );
 
-const pubQ = []; // Publish Queue, to be processed
+interface IData {
+  [name: string]: any;
+}
+
+interface IQueueElement {
+  name: string;
+  data: IData;
+}
+
+interface IActionData {
+  action: string;
+  answerID: string;
+  answerTo: string;
+  context: IData;
+}
+
+const pubQ: IQueueElement[] = []; // Publish Queue, to be processed
 
 interface IAnswer {
   [name: string]: {
     reject: (err: string) => void;
-    resolve: (answer: any) => void;
+    resolve: (answer: IData) => void;
     timeout: number;
   };
 }
 
 const awaitingAnswer: IAnswer = {};
 
-function processElement(qname: string, data: any) {
+function processElement(qname: string, data: IData) {
   if (queues[qname] === undefined) {
     mainchannel
       .assertQueue(qname, {
@@ -134,19 +158,12 @@ setInterval(() => {
     return;
   }
   if (pubQ.length > 0) {
-    let b;
+    let b: IQueueElement;
     let cc = 0;
-    while (true) {
-      // eslint-disable-line no-constant-condition
-      cc += 1;
-      if (cc > 10) {
-        break;
-      }
+    while (pubQ.length > 0 && cc < 10) {
       b = pubQ.shift();
-      if (!b) {
-        break;
-      }
-      processElement(b[0], b[1]);
+      processElement(b.name, b.data);
+      cc = cc + 1;
     }
   }
   if (newReceivers !== undefined) {
@@ -157,7 +174,7 @@ setInterval(() => {
     });
     registerReceiver(rabbitIncoming, (data: string, ack: () => void) => {
       logger.debug({ data }, 'Got Incoming');
-      const answer = JSON.parse(data);
+      const answer: IData = JSON.parse(data);
       const answerID = answer.answerID;
       if (awaitingAnswer[answerID] !== undefined) {
         const res = awaitingAnswer[answerID];
@@ -290,10 +307,13 @@ const userabbit = {
   registerReceiver(obj: any) {
     newReceivers = obj;
   },
-  send(name: string, data: any) {
-    pubQ.push([name, data]);
+  send(name: string, data: IData) {
+    pubQ.push({name, data});
   },
-  sendAction(action: string, data: any): Promise<any> {
+  sendSpecial(name: string, data: IActionData) {
+    pubQ.push({name, data});
+  },
+  sendAction(action: string, data: IData): Promise<IData> {
     return new Promise((resolve, reject) => {
       const answerID = uuid.v4();
       awaitingAnswer[answerID] = {
@@ -301,7 +321,7 @@ const userabbit = {
         resolve,
         timeout: Date.now() + 5000,
       };
-      userabbit.send('DEVICE_ACTION', {
+      userabbit.sendSpecial('DEVICE_ACTION', {
         action,
         answerID,
         answerTo: rabbitIncoming,

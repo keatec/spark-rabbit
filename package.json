@@ -6,6 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dist/main.js",
+    "check": "tslint -p tslint.json",
     "build": "tsc"
   },
   "repository": {
@@ -28,6 +29,7 @@
     "uuid": "^3.1.0"
   },
   "devDependencies": {
+    "@types/uuid": "^3.0.0",
     "typescript": "^2.4.1"
   }
 }
