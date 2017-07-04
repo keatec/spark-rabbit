@@ -1,7 +1,7 @@
 import { Event, EventProvider, EventPublisher } from 'spark-protocol';
 import { SPARK_SERVER_EVENTS } from 'spark-protocol';
 import Logger from './lib/logger';
-import rabbit from './lib/rabbit';
+import {default as rabbit, IData} from './lib/rabbit';
 const logger = Logger.createModuleLogger(module);
 
 const devices = {};
@@ -39,7 +39,7 @@ class HeadLessManagers {
       DEVICE_ACTION: (eventString: string, ack: () => void): boolean => {
         const event = JSON.parse(eventString);
         this.run(event.action, event.context)
-          .then((answer: any) => {
+          .then((answer: IData) => {
             logger.info({ ans: answer, ev: event }, 'Answer found for action');
             if (answer.error !== undefined) {
               throw new Error('Error from Spark-Server' + answer.error);
@@ -61,7 +61,7 @@ class HeadLessManagers {
     });
   }
 
-  public run = async (method: string, context: any): Promise<any> => {
+  public run = async (method: string, context: IData): Promise<IData> => {
     if (SPARK_SERVER_EVENTS[method] === undefined) {
       return Promise.reject(`Not a SparkServer Method ${method}`);
     }

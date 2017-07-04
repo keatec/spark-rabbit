@@ -14,7 +14,7 @@ import uuid = require('uuid');
 interface IReceivers {
   [queueName: string]: (data: string, ack?: () => void) => boolean;
 }
-interface IData {
+export interface IData {
   // tslint:disable-next-line:no-any
   [name: string]: any;
 }

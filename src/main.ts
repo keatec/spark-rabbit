@@ -5,6 +5,7 @@ import {
 import HeadLessManagers from './headlessmanager';
 import Logger from './lib/logger';
 import settings from './settings';
+
 const logger = Logger.createModuleLogger(module);
 
 process.on('uncaughtException', (exception: Error) => {
