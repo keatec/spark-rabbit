@@ -1,4 +1,4 @@
-import { Event, EventPublisher } from 'spark-protocol';
+import { Event, EventProvider, EventPublisher } from 'spark-protocol';
 import { SPARK_SERVER_EVENTS } from 'spark-protocol';
 import Logger from './lib/logger';
 import rabbit from './lib/rabbit';
@@ -8,9 +8,9 @@ const devices = {};
 
 class HeadLessManagers {
   private eventPublisher: EventPublisher;
-  private eventProvider: any;
+  private eventProvider: EventProvider;
 
-  constructor(eventPublisher: EventPublisher, eventProvider: any) {
+  constructor(eventPublisher: EventPublisher, eventProvider: EventProvider) {
     this.eventPublisher = eventPublisher;
     this.eventProvider = eventProvider;
     this.eventProvider.onNewEvent((event: Event) => {
@@ -19,7 +19,7 @@ class HeadLessManagers {
       if (event.name === 'spark/status') {
         if (event.data === 'online') {
           devices[event.deviceID] = true;
-          (async (): Promise<any> => {
+          (async () => {
             const attr = await this.run('GET_DEVICE_ATTRIBUTES', {
               deviceID: event.deviceID,
             });
@@ -36,11 +36,14 @@ class HeadLessManagers {
       }
     });
     rabbit.registerReceiver({
-      DEVICE_ACTION: (eventString: any, ack: () => void): boolean => {
+      DEVICE_ACTION: (eventString: string, ack: () => void): boolean => {
         const event = JSON.parse(eventString);
         this.run(event.action, event.context)
           .then((answer: any) => {
             logger.info({ ans: answer, ev: event }, 'Answer found for action');
+            if (answer.error !== undefined) {
+              throw new Error('Error from Spark-Server' + answer.error);
+            }
             ack();
             if (event.answerTo !== undefined) {
               rabbit.send(event.answerTo, { answer, answerID: event.answerID });
@@ -49,6 +52,9 @@ class HeadLessManagers {
           .catch((err: Error) => {
             logger.info({ err, ev: event }, 'Error found for action');
             ack();
+            if (event.answerTo !== undefined) {
+              rabbit.send(event.answerTo, { error: err.message, answerID: event.answerID });
+            }
           });
         return false;
       },

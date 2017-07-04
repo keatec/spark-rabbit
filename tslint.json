@@ -8,7 +8,8 @@
         "quotemark": [
             "single"
         ],
-        "no-any": true
+        "no-any": true,
+        "restrict-plus-operands": true
     },
     "rulesDirectory": []
 }

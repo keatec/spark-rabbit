@@ -1,3 +1,8 @@
+/*
+
+  Rabbit Interface Libary for Spark-Rabbit
+
+*/
 import amqp = require ('amqplib');
 import {
     defaultBindings,
@@ -7,7 +12,7 @@ import {default as Logger} from './logger';
 import uuid = require('uuid');
 
 interface IReceivers {
-  [name: string]: (data: string, ack: () => void) => boolean;
+  [queueName: string]: (data: string, ack?: () => void) => boolean;
 }
 interface IData {
   // tslint:disable-next-line:no-any
@@ -24,7 +29,7 @@ interface IActionData {
   context: IData;
 }
 interface IAnswer {
-  [name: string]: {
+  [answerID: string]: {
     reject: (err: string) => void;
     resolve: (answer: IData) => void;
     timeout: number;
@@ -47,35 +52,35 @@ let mainchannel: amqp.Channel;
 let newReceivers: IReceivers;
 let receivers: IReceivers = {};
 let queuesInitialized: {
-  [name: string]: number,
+  [queueName: string]: number,
 } = {};
 let mqRunning = true;
 
-async function sendToQueue(qname: string, data: IData) {
+async function sendToQueue(queueName: string, data: IData) {
   try {
-    if (queuesInitialized[qname] === undefined) {
-      await mainchannel.assertQueue(qname, {
+    if (queuesInitialized[queueName] === undefined) {
+      await mainchannel.assertQueue(queueName, {
         arguments: {
           'x-message-ttl': 3 * 60 * 1000,
         },
         durable: false,
       });
-      logger.info({qname}, 'Queue Asserted');
-      queuesInitialized[qname] = 1;
+      logger.info({queueName}, 'Queue Asserted');
+      queuesInitialized[queueName] = 1;
     }
-    await mainchannel.sendToQueue(qname, new Buffer(JSON.stringify(data)));
-    logger.info({qname}, 'Queue Send');
+    await mainchannel.sendToQueue(queueName, new Buffer(JSON.stringify(data)));
+    logger.info({queueName}, 'Queue Send');
   } catch (err) {
     logger.error({err}, 'Error on sending');
   }
 }
 
 async function registerReceiver(
-  name: string,
-  callback: (data: string, ack: () => void) => boolean,
+  queueName: string,
+  callback: (data: string, ack?: () => void) => boolean,
 ) {
-  logger.info({ name }, `Register Receiver ${name}`);
-  const info = await mainchannel.assertQueue(name, {
+  logger.info({ queueName }, `Register Receiver ${queueName}`);
+  const info = await mainchannel.assertQueue(queueName, {
       arguments: {
         'x-message-ttl': 3 * 60 * 1000,
       },
@@ -129,6 +134,10 @@ function restart(err?: Error) {
     }
   }
 
+}
+
+function sendAsAction(queue: string, data: IActionData) {
+    publishQueue.push({queue, data});
 }
 
 async function start() {
@@ -198,7 +207,11 @@ setInterval(() => {
       if (awaitingAnswer[answerID] !== undefined) {
         const res = awaitingAnswer[answerID];
         delete awaitingAnswer[answerID];
-        res.resolve(answer.answer);
+        if (answer.error) {
+          res.reject(answer.error);
+        } else {
+          res.resolve(answer.answer);
+        }
       } else {
         logger.warn({ answerID }, 'Received Answer, but answer cant be found');
       }
@@ -211,17 +224,14 @@ setInterval(() => {
 start();
 logger.info('Started');
 
-const userabbit = {
-  registerReceiver(obj: IReceivers) {
+export default class RabbitInterface {
+  public static registerReceiver(obj: IReceivers) {
     newReceivers = obj;
-  },
-  send(queue: string, data: IData) {
+  }
+  public static send(queue: string, data: IData) {
     publishQueue.push({queue, data});
-  },
-  sendSpecial(queue: string, data: IActionData) {
-    publishQueue.push({queue, data});
-  },
-  sendAction(action: string, data: IData): Promise<IData> {
+  }
+  public static sendAction(action: string, data: IData): Promise<IData> {
     return new Promise((resolve, reject) => {
       const answerID = uuid.v4();
       awaitingAnswer[answerID] = {
@@ -229,14 +239,12 @@ const userabbit = {
         resolve,
         timeout: Date.now() + 5000,
       };
-      userabbit.sendSpecial('DEVICE_ACTION', {
+      sendAsAction('DEVICE_ACTION', {
         action,
         answerID,
         answerTo: rabbitIncoming,
         context: data,
       });
     });
-  },
-};
-
-export default userabbit;
+  }
+}
