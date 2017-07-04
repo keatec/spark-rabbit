@@ -9,52 +9,20 @@ import uuid = require('uuid');
 interface IReceivers {
   [name: string]: (data: string, ack: () => void) => boolean;
 }
-
 interface IData {
   // tslint:disable-next-line:no-any
   [name: string]: any;
 }
-
 interface IQueueElement {
-  name: string;
+  queue: string;
   data: IData;
 }
-
 interface IActionData {
   action: string;
   answerID: string;
   answerTo: string;
   context: IData;
 }
-
-let rabbitConnection: amqp.Connection;
-let mainchannel: amqp.Channel;
-let queues: {
-  [name: string]: number,
-} = {};
-
-let newReceivers: IReceivers;
-let receivers: IReceivers = {};
-
-const rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
-  ? process.env.HOSTNAME
-  : process.env.COMPUTERNAME}`;
-
-const logger = Logger.createModuleLogger(module);
-
-const rabbitHost = process.env.RABBIT_PORT_5672_TCP_ADDR || '172.22.17.61';
-const rabbitPort = process.env.RABBIT_PORT_5672_TCP_PORT || 9998;
-
-logger.info(
-  {
-    rabbitHost,
-    rabbitPort,
-  },
-  'Creating Rabbit connection',
-);
-
-const pubQ: IQueueElement[] = []; // Publish Queue, to be processed
-
 interface IAnswer {
   [name: string]: {
     reject: (err: string) => void;
@@ -63,11 +31,29 @@ interface IAnswer {
   };
 }
 
+const rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
+  ? process.env.HOSTNAME
+  : process.env.COMPUTERNAME}`;
+const logger = Logger.createModuleLogger(module);
+const rabbitHost = process.env.RABBIT_PORT_5672_TCP_ADDR || '172.22.17.61';
+const rabbitPort = process.env.RABBIT_PORT_5672_TCP_PORT || 9998;
+const publishQueue: IQueueElement[] = []; // Publish Queue, to be processed
 const awaitingAnswer: IAnswer = {};
+
+logger.info({rabbitHost, rabbitPort}, 'Initializing Rabbit');
+
+let rabbitConnection: amqp.Connection;
+let mainchannel: amqp.Channel;
+let newReceivers: IReceivers;
+let receivers: IReceivers = {};
+let queuesInitialized: {
+  [name: string]: number,
+} = {};
+let mqRunning = true;
 
 async function sendToQueue(qname: string, data: IData) {
   try {
-    if (queues[qname] === undefined) {
+    if (queuesInitialized[qname] === undefined) {
       await mainchannel.assertQueue(qname, {
         arguments: {
           'x-message-ttl': 3 * 60 * 1000,
@@ -75,7 +61,7 @@ async function sendToQueue(qname: string, data: IData) {
         durable: false,
       });
       logger.info({qname}, 'Queue Asserted');
-      queues[qname] = 1;
+      queuesInitialized[qname] = 1;
     }
     await mainchannel.sendToQueue(qname, new Buffer(JSON.stringify(data)));
     logger.info({qname}, 'Queue Send');
@@ -113,40 +99,6 @@ async function registerReceiver(
   });
 }
 
-setInterval(() => {
-  if (mainchannel === undefined) {
-    return;
-  }
-  let b: IQueueElement;
-  let cc = 0;
-  while (pubQ.length > 0 && cc < 10) {
-    b = pubQ.shift();
-    sendToQueue(b.name, b.data);
-    cc = cc + 1;
-  }
-  if (newReceivers !== undefined) {
-    logger.info('Registering Receivers');
-    receivers = newReceivers;
-    Object.keys(receivers).forEach((key: string) => {
-      registerReceiver(key, receivers[key]);
-    });
-    registerReceiver(rabbitIncoming, (data: string, ack: () => void) => {
-      logger.debug({ data }, 'Got Incoming');
-      const answer: IData = JSON.parse(data);
-      const answerID = answer.answerID;
-      if (awaitingAnswer[answerID] !== undefined) {
-        const res = awaitingAnswer[answerID];
-        delete awaitingAnswer[answerID];
-        res.resolve(answer.answer);
-      } else {
-        logger.warn({ answerID }, 'Received Answer, but answer cant be found');
-      }
-      return true; // Auto Acknowledge
-    });
-    newReceivers = undefined;
-  }
-}, 200).unref();
-
 async function afterConnect() {
   try {
     logger.info('Was Connected');
@@ -162,12 +114,10 @@ async function afterConnect() {
   }
 }
 
-let mqRunning = true;
-
 function restart(err?: Error) {
   mainchannel = undefined;
   rabbitConnection = undefined;
-  queues = {};
+  queuesInitialized = {};
   if (receivers !== undefined) {
     newReceivers = receivers;
     receivers = undefined;
@@ -212,8 +162,6 @@ process.on('beforeExit', () => {
   }
 });
 
-start();
-
 setInterval(() => {
   const n = Date.now();
   Object.keys(awaitingAnswer).forEach((key: string) => {
@@ -226,17 +174,52 @@ setInterval(() => {
   });
 }, 5000).unref();
 
+setInterval(() => {
+  if (mainchannel === undefined) {
+    return;
+  }
+  let b: IQueueElement;
+  let cc = 0;
+  while (publishQueue.length > 0 && cc < 10) {
+    b = publishQueue.shift();
+    sendToQueue(b.queue, b.data);
+    cc = cc + 1;
+  }
+  if (newReceivers !== undefined) {
+    logger.info('Registering Receivers');
+    receivers = newReceivers;
+    Object.keys(receivers).forEach((key: string) => {
+      registerReceiver(key, receivers[key]);
+    });
+    registerReceiver(rabbitIncoming, (data: string, ack: () => void) => {
+      logger.debug({ data }, 'Got Incoming');
+      const answer: IData = JSON.parse(data);
+      const answerID = answer.answerID;
+      if (awaitingAnswer[answerID] !== undefined) {
+        const res = awaitingAnswer[answerID];
+        delete awaitingAnswer[answerID];
+        res.resolve(answer.answer);
+      } else {
+        logger.warn({ answerID }, 'Received Answer, but answer cant be found');
+      }
+      return true; // Auto Acknowledge
+    });
+    newReceivers = undefined;
+  }
+}, 200).unref();
+
+start();
 logger.info('Started');
 
 const userabbit = {
   registerReceiver(obj: IReceivers) {
     newReceivers = obj;
   },
-  send(name: string, data: IData) {
-    pubQ.push({name, data});
+  send(queue: string, data: IData) {
+    publishQueue.push({queue, data});
   },
-  sendSpecial(name: string, data: IActionData) {
-    pubQ.push({name, data});
+  sendSpecial(queue: string, data: IActionData) {
+    publishQueue.push({queue, data});
   },
   sendAction(action: string, data: IData): Promise<IData> {
     return new Promise((resolve, reject) => {
