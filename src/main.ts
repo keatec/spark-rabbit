@@ -1,15 +1,13 @@
 import { Container } from 'constitute';
-import {
-    defaultBindings,
-    } from 'spark-server';
+import { defaultBindings } from 'spark-server';
 import HeadLessManagers from './headlessmanager';
 import Logger from './lib/logger';
 import settings from './settings';
 
 const logger = Logger.createModuleLogger(module);
 
-process.on('uncaughtException', (exception: Error) => {
-  logger.error({ err: exception }, 'uncaughtException');
+process.on('uncaughtException', (err: Error) => {
+  logger.error({ err }, 'uncaughtException');
   process.exit(1); // exit with failure
 });
 

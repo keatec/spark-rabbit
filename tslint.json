@@ -3,7 +3,8 @@
     "extends": [
         "tslint:recommended"
     ],
-    "jsRules": {},
+    "jsRules": {
+    },
     "rules": {
         "quotemark": [
             "single"

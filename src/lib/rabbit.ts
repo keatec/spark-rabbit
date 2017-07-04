@@ -4,14 +4,10 @@
 
 */
 import amqp = require ('amqplib');
-import {
-    defaultBindings,
-    Settings,
-} from 'spark-server';
 import {default as Logger} from './logger';
 import uuid = require('uuid');
 
-interface IReceivers {
+export interface IReceivers {
   [queueName: string]: (data: string, ack?: () => void) => boolean;
 }
 export interface IData {
@@ -215,7 +211,8 @@ setInterval(() => {
       } else {
         logger.warn({ answerID }, 'Received Answer, but answer cant be found');
       }
-      return true; // Auto Acknowledge
+      ack();
+      return false;
     });
     newReceivers = undefined;
   }

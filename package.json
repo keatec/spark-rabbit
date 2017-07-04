@@ -7,8 +7,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node dist/main.js",
     "start:client": "node dist/client.js",
-    "check": "tslint -p tslint.json",
-    "build": "tsc"
+    "check": "tsc --noUnusedLocals --noUnusedParameters --noImplicitReturns --noImplicitThis --pretty --declaration",
+    "build": "tsc --noUnusedLocals --noUnusedParameters --noImplicitReturns --noImplicitThis --pretty --declaration"
   },
   "repository": {
     "type": "git",
