@@ -7,6 +7,14 @@ import amqp = require ('amqplib');
 import {default as Logger} from './logger';
 import uuid = require('uuid');
 
+export type SparkActions =  "GET_DEVICE_ATTRIBUTES" |
+                            "FLASH_DEVICE" |
+                            "GET_DEVICE_VARIABLE_VALUE" |
+                            "PING_DEVICE" |
+                            "RAISE_YOUR_HAND" |
+                            "UPDATE_DEVICE_ATTRIBUTES" |
+                            "CALL_DEVICE_FUNCTION";
+
 export interface IReceivers {
   [queueName: string]: (data: string, ack?: () => void) => boolean;
 }
@@ -228,7 +236,7 @@ export default class RabbitInterface {
   public static send(queue: string, data: IData) {
     publishQueue.push({queue, data});
   }
-  public static sendAction(action: string, data: IData): Promise<IData> {
+  public static sendAction(action: SparkActions, data: IData): Promise<IData> {
     return new Promise((resolve, reject) => {
       const answerID = uuid.v4();
       awaitingAnswer[answerID] = {
