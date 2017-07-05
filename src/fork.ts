@@ -1,4 +1,3 @@
-
 import cp = require ('child_process');
 import Logger from './lib/logger';
 const logger = Logger.createModuleLogger(module);

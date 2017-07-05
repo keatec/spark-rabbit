@@ -2,14 +2,10 @@ import { Container } from 'constitute';
 import { defaultBindings } from 'spark-server';
 import HeadLessManagers from './headlessmanager';
 import Logger from './lib/logger';
+import { default as pManager } from './lib/pmanager';
 import settings from './settings';
 
 const logger = Logger.createModuleLogger(module);
-
-process.on('uncaughtException', (err: Error) => {
-  logger.error({ err }, 'uncaughtException');
-  process.exit(1); // exit with failure
-});
 
 const container = new Container();
 // Change Settings if you want here
@@ -26,3 +22,5 @@ deviceServer.start();
 container.constitute('HeadLessManagers');
 
 logger.info('Started');
+
+pManager.on('exit', () => logger.info('Should stop deviceServer.'));
