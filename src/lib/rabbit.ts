@@ -40,216 +40,225 @@ interface IAnswer {
   };
 }
 
-const rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
-  ? process.env.HOSTNAME
-  : process.env.COMPUTERNAME}`;
 const logger = Logger.createModuleLogger(module);
 const rabbitHost = process.env.RABBIT_PORT_5672_TCP_ADDR || '172.22.17.61';
 const rabbitPort = process.env.RABBIT_PORT_5672_TCP_PORT || 9998;
-const publishQueue: IQueueElement[] = []; // Publish Queue, to be processed
-const awaitingAnswer: IAnswer = {};
 
-logger.info({rabbitHost, rabbitPort}, 'Initializing Rabbit');
+export class RabbitConnector {
+  public static onProcessExit() {
+    RabbitConnector.runningInstances.map((instance) => instance.onExit());
+  }
+  private static nameCounter: {
+    [name: string]: number,
+  } = {};
+  private static runningInstances: RabbitConnector[] = [];
+  private rabbitIncoming: string = 'uninitialized';
+  private publishQueue: IQueueElement[] = [];
+  private awaitingAnswer: IAnswer = {};
+  private rabbitConnection: amqp.Connection;
+  private mainchannel: amqp.Channel;
+  private newReceivers: IReceivers;
+  private receivers: IReceivers = {};
+  private queuesInitialized: {
+    [queueName: string]: number,
+  } = {};
+  private mqRunning = true;
 
-let rabbitConnection: amqp.Connection;
-let mainchannel: amqp.Channel;
-let newReceivers: IReceivers;
-let receivers: IReceivers = {};
-let queuesInitialized: {
-  [queueName: string]: number,
-} = {};
-let mqRunning = true;
+  constructor(receivers: IReceivers, name: string = 'default') {
+    let iNumber = RabbitConnector.nameCounter[name];
+    if (iNumber === undefined) {
+      RabbitConnector.nameCounter[name] = 0;
+      iNumber = 0;
+    }
+    RabbitConnector.nameCounter[name] += 1;
+    this.rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
+      ? process.env.HOSTNAME
+      : process.env.COMPUTERNAME}_${name}_${iNumber}`;
+    this.newReceivers = receivers;
+    setInterval(() => this.maintenance(), 5000).unref();
+    setInterval(() => this.processQueues(), 200).unref();
+    setTimeout(() => this.start(), 10);
+    logger.info({rabbitHost, rabbitPort, incoming: this.rabbitIncoming}, 'Rabbit-Interface Instance initialized');
+  }
 
-async function sendToQueue(queueName: string, data: IData) {
-  try {
-    if (queuesInitialized[queueName] === undefined) {
-      await mainchannel.assertQueue(queueName, {
+  public sendAction(action: SparkActions, data: IData): Promise<IData> {
+    return new Promise((resolve, reject) => {
+      const answerID = uuid.v4();
+      this.awaitingAnswer[answerID] = {
+        reject,
+        resolve,
+        timeout: Date.now() + 5000,
+      };
+      this.sendInternalAsAction('DEVICE_ACTION', {
+        action,
+        answerID,
+        answerTo: this.rabbitIncoming,
+        context: data,
+      });
+    });
+  }
+  public send(queue: string, data: IData) {
+    this.publishQueue.push({ queue, data });
+  }
+
+  protected onExit() {
+    this.mqRunning = false;
+    this.mainchannel = undefined;
+    if (this.rabbitConnection !== undefined) {
+      this.rabbitConnection.close();
+    }
+  }
+
+  private sendInternalAsAction(queue: string, data: IActionData ) {
+    this.publishQueue.push({ queue, data });
+  }
+
+  private async sendInternal(queueName: string, data: IData) {
+    try {
+      if (this.queuesInitialized[queueName] === undefined) {
+        await this.mainchannel.assertQueue(queueName, {
+          arguments: {
+            'x-message-ttl': 3 * 60 * 1000,
+          },
+          durable: false,
+        });
+        logger.info({queueName}, 'Queue Asserted');
+        this.queuesInitialized[queueName] = 1;
+      }
+      await this.mainchannel.sendToQueue(queueName, new Buffer(JSON.stringify(data)));
+      logger.info({queueName}, 'Queue Send');
+    } catch (err) {
+      logger.error({err}, 'Error on sending');
+    }
+  }
+  private processQueues() {
+    if (this.mainchannel === undefined) {
+      return;
+    }
+    let b: IQueueElement;
+    let cc = 0;
+    while (this.publishQueue.length > 0 && cc < 10) {
+      b = this.publishQueue.shift();
+      this.sendInternal(b.queue, b.data);
+      cc = cc + 1;
+    }
+    if (this.newReceivers !== undefined) {
+      logger.info('Registering Receivers');
+      this.receivers = this.newReceivers;
+      Object.keys(this.receivers).forEach((key: string) => {
+        this.registerReceiver(key, this.receivers[key]);
+      });
+      this.registerReceiver(this.rabbitIncoming, (data: string, ack: () => void) => {
+        logger.debug({ data }, 'Got Incoming');
+        const answer: IData = JSON.parse(data);
+        const answerID = answer.answerID;
+        if (this.awaitingAnswer[answerID] !== undefined) {
+          const res = this.awaitingAnswer[answerID];
+          delete this.awaitingAnswer[answerID];
+          if (answer.error) {
+            res.reject(answer.error);
+          } else {
+            res.resolve(answer.answer);
+          }
+        } else {
+          logger.warn({ answerID }, 'Received Answer, but answer cant be found');
+        }
+        ack();
+        return false;
+      });
+      this.newReceivers = undefined;
+    }
+  }
+  private maintenance() {
+      const n = Date.now();
+      Object.keys(this.awaitingAnswer).forEach((key: string) => {
+        logger.debug({ key }, 'check');
+        if (this.awaitingAnswer[key].timeout < n) {
+          this.awaitingAnswer[key].reject('Timeout');
+          delete this.awaitingAnswer[key];
+          logger.warn({ key }, 'action timeout');
+        }
+      });
+  }
+  private async start() {
+    try {
+      this.rabbitConnection = await amqp.connect(`amqp://${rabbitHost}:${rabbitPort}/?heartbeat=60`, {
+        clientProperties: {
+          platform: require.main.filename.split(/[/\\]/).splice(-1, 1),
+          product: 'RabbitConnector',
+        },
+      });
+      logger.info('Rabbit Connected');
+      this.rabbitConnection.on('error', (err: Error) => {
+        logger.error({err}, 'RMQ Error');
+      });
+      this.rabbitConnection.on('close', (err: Error) => {
+        logger.error({err}, 'RMQ Connection closed, reconnect in 2.5s');
+        this.restart();
+      });
+      this.afterConnect();
+    } catch (err) {
+      logger.error({err}, 'Rabbit Not Connected, reconnect in 2.5s');
+      this.restart(err);
+    }
+  }
+  private async registerReceiver(
+    queueName: string,
+    callback: (data: string, ack?: () => void) => boolean,
+  ) {
+    logger.info({ queueName }, `Register Receiver ${queueName}`);
+    const info = await this.mainchannel.assertQueue(queueName, {
         arguments: {
           'x-message-ttl': 3 * 60 * 1000,
         },
         durable: false,
       });
-      logger.info({queueName}, 'Queue Asserted');
-      queuesInitialized[queueName] = 1;
-    }
-    await mainchannel.sendToQueue(queueName, new Buffer(JSON.stringify(data)));
-    logger.info({queueName}, 'Queue Send');
-  } catch (err) {
-    logger.error({err}, 'Error on sending');
-  }
-}
-
-async function registerReceiver(
-  queueName: string,
-  callback: (data: string, ack?: () => void) => boolean,
-) {
-  logger.info({ queueName }, `Register Receiver ${queueName}`);
-  const info = await mainchannel.assertQueue(queueName, {
-      arguments: {
-        'x-message-ttl': 3 * 60 * 1000,
-      },
-      durable: false,
-    });
-  logger.info({info}, 'Registered');
-  await mainchannel.consume(info.queue, (msg: amqp.Message) => {
-    try {
-      logger.info({msg}, 'Got Message');
-      const ack = callback(msg.content.toString(), () => {
-          mainchannel.ack(msg);
-      });
-      if (ack !== false) {
-        mainchannel.ack(msg);
-      }
-    } catch (err) {
-      logger.error({err}, 'Error on executing message receiver');
-    }
-  }, {
-    noAck: false,
-  });
-}
-
-async function afterConnect() {
-  try {
-    logger.info('Was Connected');
-    mainchannel = await rabbitConnection.createChannel();
-    mainchannel.on('error', (err: Error) => logger.error({err}, 'RMQ Channel Error'));
-    mainchannel.on('close', (err: Error) => {
-      logger.error({err}, 'RMQ Channel Error');
-      mainchannel = undefined;
-    });
-  } catch (err) {
-    mainchannel = undefined;
-    logger.error({err}, 'Error on AfterConnect');
-  }
-}
-
-function restart(err?: Error) {
-  mainchannel = undefined;
-  rabbitConnection = undefined;
-  queuesInitialized = {};
-  if (receivers !== undefined) {
-    newReceivers = receivers;
-    receivers = undefined;
-  }
-  if (mqRunning) {
-    logger.error({err}, 'RMQ Closed');
-    if (mqRunning) {
-      setTimeout(start, 1000);
-    }
-  }
-
-}
-
-function sendAsAction(queue: string, data: IActionData) {
-    publishQueue.push({queue, data});
-}
-
-async function start() {
-  try {
-    rabbitConnection = await amqp.connect(`amqp://${rabbitHost}:${rabbitPort}/?heartbeat=60`, {
-      clientProperties: {
-        platform: require.main.filename.split(/[/\\]/).splice(-1, 1),
-        product: 'RabbitConnector',
-      },
-    });
-    logger.info('Rabbit Connected');
-    rabbitConnection.on('error', (err: Error) => {
-      logger.error({err}, 'RMQ Error');
-    });
-    rabbitConnection.on('close', (err: Error) => {
-      logger.error({err}, 'RMQ Connection closed, reconnect in 2.5s');
-      restart();
-    });
-    afterConnect();
-  } catch (err) {
-    logger.error({err}, 'Rabbit Not Connected, reconnect in 2.5s');
-    restart(err);
-  }
-}
-
-process.on('beforeExit', () => {
-  mqRunning = false;
-  mainchannel = undefined;
-  if (rabbitConnection !== undefined) {
-    rabbitConnection.close();
-  }
-});
-
-setInterval(() => {
-  const n = Date.now();
-  Object.keys(awaitingAnswer).forEach((key: string) => {
-    logger.debug({ key }, 'check');
-    if (awaitingAnswer[key].timeout < n) {
-      awaitingAnswer[key].reject('Timeout');
-      delete awaitingAnswer[key];
-      logger.warn({ key }, 'action timeout');
-    }
-  });
-}, 5000).unref();
-
-setInterval(() => {
-  if (mainchannel === undefined) {
-    return;
-  }
-  let b: IQueueElement;
-  let cc = 0;
-  while (publishQueue.length > 0 && cc < 10) {
-    b = publishQueue.shift();
-    sendToQueue(b.queue, b.data);
-    cc = cc + 1;
-  }
-  if (newReceivers !== undefined) {
-    logger.info('Registering Receivers');
-    receivers = newReceivers;
-    Object.keys(receivers).forEach((key: string) => {
-      registerReceiver(key, receivers[key]);
-    });
-    registerReceiver(rabbitIncoming, (data: string, ack: () => void) => {
-      logger.debug({ data }, 'Got Incoming');
-      const answer: IData = JSON.parse(data);
-      const answerID = answer.answerID;
-      if (awaitingAnswer[answerID] !== undefined) {
-        const res = awaitingAnswer[answerID];
-        delete awaitingAnswer[answerID];
-        if (answer.error) {
-          res.reject(answer.error);
-        } else {
-          res.resolve(answer.answer);
+    logger.info({info}, 'Registered');
+    await this.mainchannel.consume(info.queue, (msg: amqp.Message) => {
+      try {
+        logger.info({msg}, 'Got Message');
+        const ack = callback(msg.content.toString(), () => {
+            this.mainchannel.ack(msg);
+        });
+        if (ack !== false) {
+          this.mainchannel.ack(msg);
         }
-      } else {
-        logger.warn({ answerID }, 'Received Answer, but answer cant be found');
+      } catch (err) {
+        logger.error({err}, 'Error on executing message receiver');
       }
-      ack();
-      return false;
+    }, {
+      noAck: false,
     });
-    newReceivers = undefined;
   }
-}, 200).unref();
-
-start();
-logger.info('Started');
-
-export default class RabbitInterface {
-  public static registerReceiver(obj: IReceivers) {
-    newReceivers = obj;
-  }
-  public static send(queue: string, data: IData) {
-    publishQueue.push({queue, data});
-  }
-  public static sendAction(action: SparkActions, data: IData): Promise<IData> {
-    return new Promise((resolve, reject) => {
-      const answerID = uuid.v4();
-      awaitingAnswer[answerID] = {
-        reject,
-        resolve,
-        timeout: Date.now() + 5000,
-      };
-      sendAsAction('DEVICE_ACTION', {
-        action,
-        answerID,
-        answerTo: rabbitIncoming,
-        context: data,
+  private async afterConnect() {
+    try {
+      logger.info('Was Connected');
+      this.mainchannel = await this.rabbitConnection.createChannel();
+      this.mainchannel.on('error', (err: Error) => logger.error({ err }, 'RMQ Channel Error'));
+      this.mainchannel.on('close', (err: Error) => {
+        logger.error({err}, 'RMQ Channel Error');
+        this.mainchannel = undefined;
       });
-    });
+    } catch (err) {
+      this.mainchannel = undefined;
+      logger.error({err}, 'Error on AfterConnect');
+    }
+  }
+  private restart(err?: Error) {
+    this.mainchannel = undefined;
+    this.rabbitConnection = undefined;
+    this.queuesInitialized = {};
+    if (this.receivers !== undefined) {
+      this.newReceivers = this.receivers;
+      this.receivers = undefined;
+    }
+    if (this.mqRunning) {
+      logger.error({err}, 'RMQ Closed');
+      if (this.mqRunning) {
+        setTimeout(() => this.start(), 1000);
+      }
+    }
   }
 }
+
+process.on('beforeExit', () => RabbitConnector.onProcessExit());

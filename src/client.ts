@@ -1,8 +1,8 @@
 import Logger from './lib/logger';
-import rabbit from './lib/rabbit';
+import { RabbitConnector } from './lib/rabbit';
 const logger = Logger.createModuleLogger(module);
 
-rabbit.registerReceiver({
+const rabbit = new RabbitConnector({
     DEVICE_STATE: (data: string): boolean => {
         logger.info({ data }, 'State');
         return true;
@@ -20,4 +20,4 @@ rabbit.registerReceiver({
         })();
         return true;
     },
-});
+}, 'DemoClient');

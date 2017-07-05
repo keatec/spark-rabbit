@@ -1,7 +1,7 @@
 import { Event, EventProvider, EventPublisher } from 'spark-protocol';
 import { SPARK_SERVER_EVENTS } from 'spark-protocol';
 import Logger from './lib/logger';
-import {default as rabbit, IData} from './lib/rabbit';
+import { IData, RabbitConnector } from './lib/rabbit';
 const logger = Logger.createModuleLogger(module);
 
 const devices = {};
@@ -9,13 +9,13 @@ const devices = {};
 class HeadLessManagers {
   private eventPublisher: EventPublisher;
   private eventProvider: EventProvider;
-
+  private rabbit: RabbitConnector;
   constructor(eventPublisher: EventPublisher, eventProvider: EventProvider) {
     this.eventPublisher = eventPublisher;
     this.eventProvider = eventProvider;
     this.eventProvider.onNewEvent((event: Event) => {
       logger.info({ event }, 'New Event');
-      rabbit.send(`EV_${event.name}`, event);
+      this.rabbit.send(`EV_${event.name}`, event);
       if (event.name === 'spark/status') {
         if (event.data === 'online') {
           devices[event.deviceID] = true;
@@ -24,18 +24,18 @@ class HeadLessManagers {
               deviceID: event.deviceID,
             });
             logger.info({ attr }, 'Attributes found');
-            rabbit.send(`DEVICE_STATE`, { online: attr });
+            this.rabbit.send(`DEVICE_STATE`, { online: attr });
           })();
         }
         if (event.data === 'offline') {
           devices[event.deviceID] = false;
-          rabbit.send(`DEVICE_STATE`, {
+          this.rabbit.send(`DEVICE_STATE`, {
             offline: { deviceID: event.deviceID },
           });
         }
       }
     });
-    rabbit.registerReceiver({
+    this.rabbit = new RabbitConnector({
       DEVICE_ACTION: (eventString: string, ack: () => void): boolean => {
         const event = JSON.parse(eventString);
         this.run(event.action, event.context)
@@ -46,19 +46,19 @@ class HeadLessManagers {
             }
             ack();
             if (event.answerTo !== undefined) {
-              rabbit.send(event.answerTo, { answer, answerID: event.answerID });
+              this.rabbit.send(event.answerTo, { answer, answerID: event.answerID });
             }
           })
           .catch((err: Error) => {
             logger.info({ err, ev: event }, 'Error found for action');
             ack();
             if (event.answerTo !== undefined) {
-              rabbit.send(event.answerTo, { error: err.message, answerID: event.answerID });
+              this.rabbit.send(event.answerTo, { error: err.message, answerID: event.answerID });
             }
           });
         return false;
       },
-    });
+    }, 'HLM');
   }
 
   public run = async (method: string, context: IData): Promise<IData> => {
