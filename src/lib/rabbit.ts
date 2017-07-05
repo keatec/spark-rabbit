@@ -6,6 +6,7 @@
 import amqp = require ('amqplib');
 import {default as Logger} from './logger';
 import uuid = require('uuid');
+import { default as pManager } from './pmanager';
 
 export type SparkActions =  "GET_DEVICE_ATTRIBUTES" |
                             "FLASH_DEVICE" |
@@ -46,6 +47,7 @@ const rabbitPort = process.env.RABBIT_PORT_5672_TCP_PORT || 9998;
 
 export class RabbitConnector {
   public static onProcessExit() {
+    logger.info('Closing instances...');
     RabbitConnector.runningInstances.map((instance) => instance.onExit());
   }
   private static nameCounter: {
@@ -79,6 +81,7 @@ export class RabbitConnector {
     setInterval(() => this.processQueues(), 200).unref();
     setTimeout(() => this.start(), 10);
     logger.info({rabbitHost, rabbitPort, incoming: this.rabbitIncoming}, 'Rabbit-Interface Instance initialized');
+    RabbitConnector.runningInstances.push(this);
   }
 
   public sendAction(action: SparkActions, data: IData): Promise<IData> {
@@ -102,6 +105,7 @@ export class RabbitConnector {
   }
 
   protected onExit() {
+    logger.info({r: this.mqRunning, ra: this.rabbitConnection }, 'Going down...');
     this.mqRunning = false;
     this.mainchannel = undefined;
     if (this.rabbitConnection !== undefined) {
@@ -261,4 +265,4 @@ export class RabbitConnector {
   }
 }
 
-process.on('beforeExit', () => RabbitConnector.onProcessExit());
+pManager.on('exit', () => RabbitConnector.onProcessExit());

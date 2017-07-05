@@ -2,6 +2,8 @@ import Logger from './lib/logger';
 import { RabbitConnector } from './lib/rabbit';
 const logger = Logger.createModuleLogger(module);
 
+import { default as pManager } from './lib/pmanager';
+
 const rabbit = new RabbitConnector({
     DEVICE_STATE: (data: string): boolean => {
         logger.info({ data }, 'State');
@@ -21,3 +23,5 @@ const rabbit = new RabbitConnector({
         return true;
     },
 }, 'DemoClient');
+
+pManager.on('exit', () => logger.info('Stopping Democlient'));
