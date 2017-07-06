@@ -1,5 +1,6 @@
 import { Event, EventProvider, EventPublisher } from 'spark-protocol';
 import { SPARK_SERVER_EVENTS } from 'spark-protocol';
+import { FirmwareInfo } from './firmwareinfo';
 import Logger from './lib/logger';
 import { IData, RabbitConnector } from './lib/rabbit';
 const logger = Logger.createModuleLogger(module);
@@ -23,6 +24,7 @@ class HeadLessManagers {
             const attr = await this.run('GET_DEVICE_ATTRIBUTES', {
               deviceID: event.deviceID,
             });
+            attr.firmware = FirmwareInfo.identify(attr.appHash);
             logger.info({ attr }, 'Attributes found');
             this.rabbit.send(`DEVICE_STATE`, { online: attr });
           })();
@@ -38,24 +40,32 @@ class HeadLessManagers {
     this.rabbit = new RabbitConnector({
       DEVICE_ACTION: (eventString: string, ack: () => void): boolean => {
         const event = JSON.parse(eventString);
-        this.run(event.action, event.context)
-          .then((answer: IData) => {
-            logger.info({ ans: answer, ev: event }, 'Answer found for action');
-            if (answer.error !== undefined) {
-              throw new Error('Error from Spark-Server' + answer.error);
-            }
-            ack();
-            if (event.answerTo !== undefined) {
-              this.rabbit.send(event.answerTo, { answer, answerID: event.answerID });
-            }
-          })
-          .catch((err: Error) => {
-            logger.info({ err, ev: event }, 'Error found for action');
-            ack();
-            if (event.answerTo !== undefined) {
-              this.rabbit.send(event.answerTo, { error: err.message, answerID: event.answerID });
-            }
-          });
+        (async () => {
+          if (event.context.firmwareName !== undefined) {
+            logger.info({name: event.context.firmwareName}, 'Reading Firmware)');
+            event.context.fileBuffer = await FirmwareInfo.getFileBuffer(event.context.firmwareName);
+            delete event.context.firmwareName;
+            logger.info(`Readed`);
+          }
+          this.run(event.action, event.context)
+            .then((answer: IData) => {
+              logger.info({ ans: answer }, 'Answer found for action');
+              if (answer.error !== undefined) {
+                throw new Error('Error from Spark-Server' + answer.error);
+              }
+              ack();
+              if (event.answerTo !== undefined) {
+                this.rabbit.send(event.answerTo, { answer, answerID: event.answerID });
+              }
+            })
+            .catch((err: Error) => {
+              logger.info({ err }, 'Error found for action');
+              ack();
+              if (event.answerTo !== undefined) {
+                this.rabbit.send(event.answerTo, { error: err.message, answerID: event.answerID });
+              }
+            });
+        })();
         return false;
       },
     }, 'HLM');

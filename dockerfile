@@ -21,6 +21,7 @@ RUN npm install
 
 COPY ./dist/* /usr/src/localCloud/spark-rabbit/dist/
 COPY ./dist/lib/* /usr/src/localCloud/spark-rabbit/dist/lib/
+COPY ./firmware/*.bin /usr/src/localCloud/spark-rabbit/firmware/
 
 WORKDIR /usr/src/localCloud/spark-rabbit
 
@@ -33,5 +34,5 @@ EXPOSE 8080
 # Expose DataDirectory to store DB and Device Keys 
 VOLUME /usr/src/localCloud/spark-rabbit/data
 
-ENTRYPOINT ["npm", "run", "start"]
+ENTRYPOINT ["node", "./dist/main"]
 #ENTRYPOINT ["/bin/sh"]

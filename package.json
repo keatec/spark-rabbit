@@ -22,6 +22,7 @@
   "homepage": "https://github.com/keatec/spark-rabbit#readme",
   "dependencies": {
     "amqplib": "^0.5.1",
+    "binary-version-reader": "^0.5.1",
     "bluebird": "^3.5.0",
     "path": "^0.12.7",
     "spark-protocol": "git+https://github.com/Brewskey/spark-protocol.git#dev",

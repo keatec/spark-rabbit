@@ -68,11 +68,25 @@ class RabbitConnector {
         this.publishQueue.push({ queue, data });
     }
     onExit() {
-        logger.info({ r: this.mqRunning, ra: this.rabbitConnection }, 'Going down...');
+        logger.info({ wasRunning: this.mqRunning, connection: this.rabbitConnection !== undefined }, 'Going down...');
         this.mqRunning = false;
-        this.mainchannel = undefined;
-        if (this.rabbitConnection !== undefined) {
-            this.rabbitConnection.close();
+        if (this.mainchannel !== undefined) {
+            logger.info('Closing with channel');
+            (() => __awaiter(this, void 0, void 0, function* () {
+                yield this.mainchannel.close();
+                logger.info('Channel Closed.');
+                yield this.rabbitConnection.close();
+                logger.info('Connection Closed.');
+            }))();
+        }
+        else {
+            logger.info('Closing without channel');
+            (() => __awaiter(this, void 0, void 0, function* () {
+                if (this.rabbitConnection !== undefined) {
+                    yield this.rabbitConnection.close();
+                    logger.info('Connection Closed.');
+                }
+            }))();
         }
     }
     sendInternalAsAction(queue, data) {
@@ -160,12 +174,19 @@ class RabbitConnector {
                     },
                 });
                 logger.info('Rabbit Connected');
-                this.rabbitConnection.on('error', (err) => {
-                    logger.error({ err }, 'RMQ Error');
+                this.rabbitConnection.on('error', (error) => {
+                    if (error !== undefined) {
+                        logger.error({ error }, 'Rabbit connection Error');
+                    }
                 });
-                this.rabbitConnection.on('close', (err) => {
-                    logger.error({ err }, 'RMQ Connection closed, reconnect in 2.5s');
-                    this.restart();
+                this.rabbitConnection.on('close', (error) => {
+                    if (this.mqRunning) {
+                        logger.error({ error, running: this.mqRunning }, 'RMQ Connection closed, reconnect in 2.5s');
+                        this.restart();
+                    }
+                    else {
+                        logger.info({ error, running: this.mqRunning }, 'RMQ Connection closed');
+                    }
                 });
                 this.afterConnect();
             }
@@ -208,9 +229,9 @@ class RabbitConnector {
             try {
                 logger.info('Was Connected');
                 this.mainchannel = yield this.rabbitConnection.createChannel();
-                this.mainchannel.on('error', (err) => logger.error({ err }, 'RMQ Channel Error'));
-                this.mainchannel.on('close', (err) => {
-                    logger.error({ err }, 'RMQ Channel Error');
+                this.mainchannel.on('error', (error) => logger.error({ error }, 'RMQ Channel Error'));
+                this.mainchannel.on('close', () => {
+                    logger.info({}, 'RMQ Channel Closed');
                     this.mainchannel = undefined;
                 });
             }
@@ -229,10 +250,8 @@ class RabbitConnector {
             this.receivers = undefined;
         }
         if (this.mqRunning) {
-            logger.error({ err }, 'RMQ Closed');
-            if (this.mqRunning) {
-                setTimeout(() => this.start(), 1000);
-            }
+            logger.info({ err }, 'Restarting');
+            setTimeout(() => this.start(), 1000);
         }
     }
 }

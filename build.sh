@@ -15,3 +15,6 @@ docker run -e "LOG_LEVEL=debug" -p 8100:8080 -p 5683:5683 --volume /localStore/d
 #docker rm $(docker ps -q -f status=exited) & docker rmi $(docker images -f "dangling=true" -q)
 
 docker logs --follow sparkserver | bunyan -o short
+
+
+

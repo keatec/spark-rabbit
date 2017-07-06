@@ -24,12 +24,14 @@ export class PManager extends EventEmitter {
             logger.info('Halt already called');
             return;
         }
-        logger.info('Stopping system (force process EXIT after 10s) TermCode 8 -- Forced');
+        logger.info('Stopping system (force process EXIT after 8s) TermCode 8 -- Forced');
         this.halted = true;
         setTimeout(() => this.emit('exit'), 100);
-        setTimeout(() => process.exit(8), 10 * 1000).unref();
+        setTimeout(() => {
+            logger.warn('Terminating after 8 sec waiting Time...');
+            process.exit(8);
+        }, 8 * 1500).unref();
     }
-
 }
 
 const single = new PManager();
