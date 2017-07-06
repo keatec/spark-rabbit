@@ -8,9 +8,9 @@ import fs = require('fs');
 
 interface IFileInfo {
     appHash: string;
+    buffer: Buffer;
     fileName: string;
     name: string;
-    buffer: Buffer;
 }
 
 function parseDir(directory: string): Promise<IFileInfo[]> {
@@ -30,6 +30,7 @@ function parseDir(directory: string): Promise<IFileInfo[]> {
                                 }
                                 return res({
                                     appHash: fileInfo.suffixInfo.fwUniqueId,
+                                    buffer: undefined,
                                     fileName: directory + filename,
                                     name: filename,
                                 });
@@ -61,7 +62,7 @@ async function syncFirmwareImages() {
 }
 
 setTimeout(() => syncFirmwareImages(), 100).unref();
-setInterval(() => syncFirmwareImages(), 60 * 1000).unref();
+setInterval(() => syncFirmwareImages(), 5 * 60 * 1000).unref();
 
 export class FirmwareInfo {
     public static identify(appHash: string) {

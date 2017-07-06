@@ -29,6 +29,7 @@ function parseDir(directory) {
                         }
                         return res({
                             appHash: fileInfo.suffixInfo.fwUniqueId,
+                            buffer: undefined,
                             fileName: directory + filename,
                             name: filename,
                         });
@@ -53,7 +54,7 @@ function syncFirmwareImages() {
     });
 }
 setTimeout(() => syncFirmwareImages(), 100).unref();
-setInterval(() => syncFirmwareImages(), 60 * 1000).unref();
+setInterval(() => syncFirmwareImages(), 5 * 60 * 1000).unref();
 class FirmwareInfo {
     static identify(appHash) {
         return knownAppHash[appHash].name;
