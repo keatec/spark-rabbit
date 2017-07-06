@@ -26,6 +26,7 @@ const rabbit = new RabbitConnector({
 
 pManager.on('exit', () => logger.info('Stopping Democlient'));
 
+/*
 (async () => {
     try {
         const answer = await rabbit.sendAction('FLASH_DEVICE', {
@@ -37,3 +38,4 @@ pManager.on('exit', () => logger.info('Stopping Democlient'));
         logger.error({err}, 'Error during EV_BEAT');
     }
 })();
+*/

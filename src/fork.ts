@@ -2,7 +2,7 @@ import cp = require ('child_process');
 import Logger from './lib/logger';
 const logger = Logger.createModuleLogger(module);
 
-const run = cp.fork('./dist/client.js', [], {});
+const run = cp.fork('./dist/client.js', [], {stdio : [0, 1, 2, 'ipc'] });
 run.on('exit', (code: number, signal: string) => {
     logger.info({code, signal}, 'Exit');
 });
@@ -17,7 +17,10 @@ run.on('disconnect', () => {
 });
 process.on('SIGINT', () => {
     logger.info('SigInt Called');
+    run.kill('SIGINT');
 });
 process.on('SIGTERM', () => {
     logger.info('SigTerm Called');
 });
+
+setInterval(() => { logger.info('Ping'); }, 1000);
