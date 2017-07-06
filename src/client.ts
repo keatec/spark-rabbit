@@ -9,7 +9,7 @@ const rabbit = new RabbitConnector({
         logger.info({ data }, 'State');
         return true;
     },
-    EV_BEAT: (data: string): boolean => {
+    JEV_BEAT: (data: string): boolean => {
         const ev = JSON.parse(data);
         logger.info({ deviceID : ev.deviceID }, 'Beat');
         (async () => {
@@ -17,7 +17,7 @@ const rabbit = new RabbitConnector({
                 const answer = await rabbit.sendAction('GET_DEVICE_ATTRIBUTES', { deviceID: ev.deviceID});
                 logger.info({answer}, 'Got Answer');
             } catch (err) {
-              logger.error({err}, 'Error during EV_BEAT');
+              logger.error({err}, 'Error during JEV_BEAT');
             }
         })();
         return true;
@@ -26,7 +26,6 @@ const rabbit = new RabbitConnector({
 
 pManager.on('exit', () => logger.info('Stopping Democlient'));
 
-/*
 (async () => {
     try {
         const answer = await rabbit.sendAction('FLASH_DEVICE', {
@@ -38,4 +37,3 @@ pManager.on('exit', () => logger.info('Stopping Democlient'));
         logger.error({err}, 'Error during EV_BEAT');
     }
 })();
-*/

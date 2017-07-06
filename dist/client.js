@@ -17,7 +17,7 @@ const rabbit = new rabbit_1.RabbitConnector({
         logger.info({ data }, 'State');
         return true;
     },
-    EV_BEAT: (data) => {
+    JEV_BEAT: (data) => {
         const ev = JSON.parse(data);
         logger.info({ deviceID: ev.deviceID }, 'Beat');
         (() => __awaiter(this, void 0, void 0, function* () {
@@ -26,24 +26,23 @@ const rabbit = new rabbit_1.RabbitConnector({
                 logger.info({ answer }, 'Got Answer');
             }
             catch (err) {
-                logger.error({ err }, 'Error during EV_BEAT');
+                logger.error({ err }, 'Error during JEV_BEAT');
             }
         }))();
         return true;
     },
 }, 'DemoClient');
 pmanager_1.default.on('exit', () => logger.info('Stopping Democlient'));
-/*
-(async () => {
+(() => __awaiter(this, void 0, void 0, function* () {
     try {
-        const answer = await rabbit.sendAction('FLASH_DEVICE', {
+        const answer = yield rabbit.sendAction('FLASH_DEVICE', {
             deviceID: '3d004b001051353338363333',
             firmwareName: 'firmware.bin.0.9.2.aquatast_exta.bin',
         });
-        logger.info({answer}, 'Got Answer');
-    } catch (err) {
-        logger.error({err}, 'Error during EV_BEAT');
+        logger.info({ answer }, 'Got Answer');
     }
-})();
-*/
+    catch (err) {
+        logger.error({ err }, 'Error during EV_BEAT');
+    }
+}))();
 //# sourceMappingURL=client.js.map

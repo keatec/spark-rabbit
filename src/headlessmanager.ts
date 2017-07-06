@@ -16,7 +16,11 @@ class HeadLessManagers {
     this.eventProvider = eventProvider;
     this.eventProvider.onNewEvent((event: Event) => {
       logger.info({ event }, 'New Event');
-      this.rabbit.send(`EV_${event.name}`, event);
+      if (event.data !== undefined && event.data[0] === '{') {
+        this.rabbit.send(`JEV_${event.name}`, event);
+      } else {
+        this.rabbit.send(`EV_${event.name}`, event);
+      }
       if (event.name === 'spark/status') {
         if (event.data === 'online') {
           devices[event.deviceID] = true;
@@ -47,6 +51,25 @@ class HeadLessManagers {
             delete event.context.firmwareName;
             logger.info(`Readed`);
           }
+          if (event.context.deviceID !== undefined) {
+            if (devices[event.context.deviceID] === undefined) {
+              logger.warn({ deviceID: event.context.deviceID }, 'Cant found device for action');
+              ack();
+              if (event.answerTo !== undefined) {
+                this.rabbit.send(event.answerTo, { error: 'Cant found device for action', answerID: event.answerID });
+              }
+              return;
+            } else {
+              if (devices[event.context.deviceID] === false) {
+                logger.warn({ deviceID: event.context.deviceID }, 'Device is currently offline');
+                ack();
+                if (event.answerTo !== undefined) {
+                  this.rabbit.send(event.answerTo, { error: 'Device is currently offline', answerID: event.answerID });
+                }
+                return;
+              }
+            }
+          }
           this.run(event.action, event.context)
             .then((answer: IData) => {
               logger.info({ ans: answer }, 'Answer found for action');
@@ -59,7 +82,7 @@ class HeadLessManagers {
               }
             })
             .catch((err: Error) => {
-              logger.info({ err }, 'Error found for action');
+              logger.warn({ err }, 'Error found for action');
               ack();
               if (event.answerTo !== undefined) {
                 this.rabbit.send(event.answerTo, { error: err.message, answerID: event.answerID });
