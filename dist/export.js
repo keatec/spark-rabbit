@@ -10,4 +10,6 @@ const pmanager_1 = require("./lib/pmanager");
 exports.pManager = pmanager_1.default;
 const rabbit_1 = require("./lib/rabbit");
 exports.RabbitConnector = rabbit_1.RabbitConnector;
+const rabbitmodule_1 = require("./lib/rabbitmodule");
+exports.RabbitModule = rabbitmodule_1.RabbitModule;
 //# sourceMappingURL=export.js.map
