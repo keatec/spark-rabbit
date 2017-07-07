@@ -9,4 +9,11 @@ export default class Logger {
       serializers: bunyan.stdSerializers,
     });
   }
+   public static createNamedLogger(name: string): bunyan {
+    return bunyan.createLogger({
+      level: process.env.LOG_LEVEL || 'info',
+      name,
+      serializers: bunyan.stdSerializers,
+    });
+  }
 }

@@ -10,6 +10,13 @@ class Logger {
             serializers: bunyan.stdSerializers,
         });
     }
+    static createNamedLogger(name) {
+        return bunyan.createLogger({
+            level: process.env.LOG_LEVEL || 'info',
+            name,
+            serializers: bunyan.stdSerializers,
+        });
+    }
 }
 exports.default = Logger;
 //# sourceMappingURL=logger.js.map

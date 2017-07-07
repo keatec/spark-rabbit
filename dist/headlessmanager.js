@@ -9,7 +9,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const spark_protocol_1 = require("spark-protocol");
-const firmwareinfo_1 = require("./firmwareinfo");
+const firmwareinfo_1 = require("./lib/firmwareinfo");
 const logger_1 = require("./lib/logger");
 const rabbit_1 = require("./lib/rabbit");
 const logger = logger_1.default.createModuleLogger(module);
@@ -68,7 +68,7 @@ class HeadLessManagers {
                     }
                     if (event.context.deviceID !== undefined) {
                         if (devices[event.context.deviceID] === undefined) {
-                            logger.info({ deviceID: event.context.deviceID }, 'Cant found device for action');
+                            logger.warn({ deviceID: event.context.deviceID }, 'Cant found device for action');
                             ack();
                             if (event.answerTo !== undefined) {
                                 this.rabbit.send(event.answerTo, { error: 'Cant found device for action', answerID: event.answerID });
@@ -77,7 +77,7 @@ class HeadLessManagers {
                         }
                         else {
                             if (devices[event.context.deviceID] === false) {
-                                logger.info({ deviceID: event.context.deviceID }, 'Device is currently offline');
+                                logger.warn({ deviceID: event.context.deviceID }, 'Device is currently offline');
                                 ack();
                                 if (event.answerTo !== undefined) {
                                     this.rabbit.send(event.answerTo, { error: 'Device is currently offline', answerID: event.answerID });
@@ -98,7 +98,7 @@ class HeadLessManagers {
                         }
                     })
                         .catch((err) => {
-                        logger.info({ err }, 'Error found for action');
+                        logger.warn({ err }, 'Error found for action');
                         ack();
                         if (event.answerTo !== undefined) {
                             this.rabbit.send(event.answerTo, { error: err.message, answerID: event.answerID });

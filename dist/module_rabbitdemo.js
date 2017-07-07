@@ -41,7 +41,7 @@ class Rabs extends rabbitmodule_1.RabbitModule {
     }
     on_JEV_BEAT(data) {
         const ev = JSON.parse(data);
-        logger.info({ deviceID: ev.deviceID, tt: this }, 'Beat');
+        logger.info({ deviceID: ev.deviceID }, 'Beat');
         (() => __awaiter(this, void 0, void 0, function* () {
             try {
                 const answer = yield this.rabbit.sendAction('GET_DEVICE_ATTRIBUTES', { deviceID: ev.deviceID });
@@ -57,6 +57,5 @@ class Rabs extends rabbitmodule_1.RabbitModule {
         logger.info('Started');
     }
 }
-modulemanager_1.ModuleManager.registerClass('RabbitClient', Rabs, process.mainModule === module);
-exports.default = Rabs;
-//# sourceMappingURL=client.js.map
+exports.default = modulemanager_1.ModuleManager.registerClass(Rabs, module);
+//# sourceMappingURL=module_rabbitdemo.js.map

@@ -1,6 +1,6 @@
 import { Event, EventProvider, EventPublisher } from 'spark-protocol';
 import { SPARK_SERVER_EVENTS } from 'spark-protocol';
-import { FirmwareInfo } from './firmwareinfo';
+import { FirmwareInfo } from './lib/firmwareinfo';
 import Logger from './lib/logger';
 import { IData, RabbitConnector } from './lib/rabbit';
 const logger = Logger.createModuleLogger(module);

@@ -8,11 +8,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-const logger_1 = require("./lib/logger");
+const logger_1 = require("../lib/logger");
 const logger = logger_1.default.createModuleLogger(module);
-const modulemanager_1 = require("./lib/modulemanager");
-const pmanager_1 = require("./lib/pmanager");
-const rabbitmodule_1 = require("./lib/rabbitmodule");
+const modulemanager_1 = require("../lib/modulemanager");
+const pmanager_1 = require("../lib/pmanager");
+const rabbitmodule_1 = require("../lib/rabbitmodule");
 pmanager_1.default.on('exit', () => logger.info('Stopping Democlient'));
 /*
 (async () => {
@@ -36,27 +36,26 @@ class Rabs extends rabbitmodule_1.RabbitModule {
         });
     }
     on_DEVICE_STATE(data) {
-        logger.info({ data }, 'State');
+        this.logger.info({ data }, 'State');
         return true;
     }
     on_JEV_BEAT(data) {
         const ev = JSON.parse(data);
-        logger.info({ deviceID: ev.deviceID, tt: this }, 'Beat');
+        this.logger.info({ deviceID: ev.deviceID }, 'Beat');
         (() => __awaiter(this, void 0, void 0, function* () {
             try {
                 const answer = yield this.rabbit.sendAction('GET_DEVICE_ATTRIBUTES', { deviceID: ev.deviceID });
-                logger.info({ answer }, 'Got Answer');
+                this.logger.info({ answer }, 'Got Answer');
             }
             catch (err) {
-                logger.error({ err }, 'Error during JEV_BEAT');
+                this.logger.error({ err }, 'Error during JEV_BEAT');
             }
         }))();
         return true;
     }
     start() {
-        logger.info('Started');
+        this.logger.info('Started');
     }
 }
-modulemanager_1.ModuleManager.registerClass('RabbitClient', Rabs, process.mainModule === module);
-exports.default = Rabs;
-//# sourceMappingURL=client.js.map
+exports.default = modulemanager_1.ModuleManager.registerClass(Rabs, module);
+//# sourceMappingURL=module_rabbitdemo.js.map
