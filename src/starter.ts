@@ -1,4 +1,9 @@
+/**
+ * Sample Starting Point for a PManager base start file
+ * all settings are configured in setting.ts
+ */
 
+/** */
 import Logger from './lib/logger';
 import { Module } from './lib/module';
 import { ModuleManager } from './lib/modulemanager';

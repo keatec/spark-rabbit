@@ -7,6 +7,9 @@ const logger = Logger.createModuleLogger(module);
 
 const devices = {};
 
+/**
+ * Provides an interface to Spark-Server using Rabbit Queues
+ */
 class HeadLessManagers {
   private eventPublisher: EventPublisher;
   private eventProvider: EventProvider;

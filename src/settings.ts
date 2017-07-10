@@ -1,5 +1,8 @@
 import path = require ('path');
 
+/**
+ * Default Export Parameters
+ */
 export default {
   ACCESS_TOKEN_LIFETIME: 7776000, // 90 days,
   API_TIMEOUT: 30000, // Timeout for API requests.

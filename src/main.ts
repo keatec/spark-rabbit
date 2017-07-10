@@ -1,3 +1,8 @@
+/**
+ * Central File to start application, referenced from npm run start
+ */
+
+/** */
 import { Container } from 'constitute';
 import { defaultBindings } from 'spark-server';
 import HeadLessManagers from './headlessmanager';
@@ -8,7 +13,6 @@ import settings from './settings';
 const logger = Logger.createModuleLogger(module);
 
 const container = new Container();
-// Change Settings if you want here
 defaultBindings(container, settings);
 
 container.bindClass('HeadLessManagers', HeadLessManagers, [

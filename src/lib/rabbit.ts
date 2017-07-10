@@ -1,8 +1,7 @@
-/*
+/**
+ * Interface Libray to interact with rabbit (amqp compatible) messagequeue
+ */
 
-  Rabbit Interface Libary for Spark-Rabbit
-
-*/
 import amqp = require ('amqplib');
 import {default as Logger} from './logger';
 import uuid = require('uuid');
@@ -45,7 +44,16 @@ const logger = Logger.createModuleLogger(module);
 const rabbitHost = process.env.RABBIT_PORT_5672_TCP_ADDR || '172.22.17.61';
 const rabbitPort = process.env.RABBIT_PORT_5672_TCP_PORT || 9998;
 
+/**
+ * Central Class to interface with an Rabbit
+ */
 export class RabbitConnector {
+  /**
+   * Send an exit to all Running Rabbit connectors
+   * Should be called from a surrounding system in case of process Exit
+   * @static
+   * @memberof RabbitConnector
+   */
   public static onProcessExit() {
     logger.info('Closing instances...');
     RabbitConnector.runningInstances.map((instance) => instance.onExit());
