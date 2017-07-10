@@ -16,14 +16,31 @@ const container = new Container();
 defaultBindings(container, settings);
 
 container.bindClass('HeadLessManagers', HeadLessManagers, [
-    'EventPublisher',
+    'DeviceAttributeRepository',
     'EVENT_PROVIDER',
+    'EventPublisher',
 ]);
 
 const deviceServer = container.constitute('DeviceServer');
 deviceServer.start();
 
-container.constitute('HeadLessManagers');
+const users = container.constitute('UserRepository');
+
+const manager: HeadLessManagers = container.constitute('HeadLessManagers');
+
+(async () => {
+    try {
+        let user = await users.getByUsername('admin');
+        if (!user) {
+            user = await users.createWithCredentials({ username: 'admin', password: 'admin'}, 'administrator');
+            logger.info({ user }, ' Admin was created' );
+        }
+        logger.info({id : user.id }, ' Readed Admin' );
+        manager.claimDevice('3d004b001051353338363333', user.id);
+    } catch ( err ) {
+        logger.error({err}, 'Error');
+    }
+})();
 
 logger.info('Started');
 

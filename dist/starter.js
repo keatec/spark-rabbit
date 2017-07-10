@@ -1,5 +1,10 @@
 "use strict";
+/**
+ * Sample Starting Point for a PManager base start file
+ * all settings are configured in setting.ts
+ */
 Object.defineProperty(exports, "__esModule", { value: true });
+/** */
 const logger_1 = require("./lib/logger");
 const modulemanager_1 = require("./lib/modulemanager");
 const logger = logger_1.default.createModuleLogger(module);

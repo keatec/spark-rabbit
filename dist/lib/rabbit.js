@@ -1,4 +1,7 @@
 "use strict";
+/**
+ * Interface Libray to interact with rabbit (amqp compatible) messagequeue
+ */
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     return new (P || (P = Promise))(function (resolve, reject) {
         function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
@@ -8,11 +11,6 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
     });
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-/*
-
-  Rabbit Interface Libary for Spark-Rabbit
-
-*/
 const amqp = require("amqplib");
 const logger_1 = require("./logger");
 const uuid = require("uuid");
@@ -20,6 +18,9 @@ const pmanager_1 = require("./pmanager");
 const logger = logger_1.default.createModuleLogger(module);
 const rabbitHost = process.env.RABBIT_PORT_5672_TCP_ADDR || '172.22.17.61';
 const rabbitPort = process.env.RABBIT_PORT_5672_TCP_PORT || 9998;
+/**
+ * Central Class to interface with an Rabbit
+ */
 class RabbitConnector {
     constructor(receivers, name = 'default') {
         this.rabbitIncoming = 'uninitialized';
@@ -44,6 +45,12 @@ class RabbitConnector {
         logger.info({ rabbitHost, rabbitPort, incoming: this.rabbitIncoming }, 'Rabbit-Interface Instance initialized');
         RabbitConnector.runningInstances.push(this);
     }
+    /**
+     * Send an exit to all Running Rabbit connectors
+     * Should be called from a surrounding system in case of process Exit
+     * @static
+     * @memberof RabbitConnector
+     */
     static onProcessExit() {
         logger.info('Closing instances...');
         RabbitConnector.runningInstances.map((instance) => instance.onExit());

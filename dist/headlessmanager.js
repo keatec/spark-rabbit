@@ -14,8 +14,11 @@ const logger_1 = require("./lib/logger");
 const rabbit_1 = require("./lib/rabbit");
 const logger = logger_1.default.createModuleLogger(module);
 const devices = {};
+/**
+ * Provides an interface to Spark-Server using Rabbit Queues
+ */
 class HeadLessManagers {
-    constructor(eventPublisher, eventProvider) {
+    constructor(deviceAttributeRepository, eventProvider, eventPublisher) {
         this.run = (method, context) => __awaiter(this, void 0, void 0, function* () {
             if (spark_protocol_1.SPARK_SERVER_EVENTS[method] === undefined) {
                 return Promise.reject(`Not a SparkServer Method ${method}`);
@@ -26,8 +29,39 @@ class HeadLessManagers {
             });
             return answer;
         });
+        this.claimDevice = (deviceID, userID) => __awaiter(this, void 0, void 0, function* () {
+            // todo check: we may not need to get attributes from db here.
+            let attributes = yield this.deviceAttributeRepository.getByID(deviceID);
+            let claim = true;
+            if (!attributes) {
+                logger.warn('No device found');
+                claim = false;
+            }
+            if (attributes.ownerID && attributes.ownerID !== userID) {
+                logger.warn('The device belongs to someone else, reassign to me');
+            }
+            if (attributes.ownerID && attributes.ownerID === userID) {
+                logger.warn('The device is already claimed.');
+                claim = false;
+            }
+            if (claim) {
+                logger.info({ deviceID }, 'Claiming device');
+                // update connected device attributes
+                yield this.eventPublisher.publishAndListenForResponse({
+                    context: { attributes: { ownerID: userID }, deviceID },
+                    name: spark_protocol_1.SPARK_SERVER_EVENTS.UPDATE_DEVICE_ATTRIBUTES,
+                });
+                // todo check: we may not need to update attributes in db here.
+                yield this.deviceAttributeRepository.updateByID(deviceID, {
+                    ownerID: userID,
+                });
+                attributes = yield this.deviceAttributeRepository.getByID(deviceID);
+            }
+            return attributes;
+        });
         this.eventPublisher = eventPublisher;
         this.eventProvider = eventProvider;
+        this.deviceAttributeRepository = deviceAttributeRepository;
         this.eventProvider.onNewEvent((event) => {
             logger.info({ event }, 'New Event');
             if (event.data !== undefined && event.data[0] === '{') {

@@ -1,6 +1,9 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 const path = require("path");
+/**
+ * Default Export Parameters
+ */
 exports.default = {
     ACCESS_TOKEN_LIFETIME: 7776000,
     API_TIMEOUT: 30000,

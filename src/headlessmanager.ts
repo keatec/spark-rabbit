@@ -1,4 +1,4 @@
-import { Event, EventProvider, EventPublisher } from 'spark-protocol';
+import { DeviceAttributes, Event, EventProvider, EventPublisher, IDeviceAttributeRepository } from 'spark-protocol';
 import { SPARK_SERVER_EVENTS } from 'spark-protocol';
 import { FirmwareInfo } from './lib/firmwareinfo';
 import Logger from './lib/logger';
@@ -13,10 +13,15 @@ const devices = {};
 class HeadLessManagers {
   private eventPublisher: EventPublisher;
   private eventProvider: EventProvider;
+  private deviceAttributeRepository: IDeviceAttributeRepository;
   private rabbit: RabbitConnector;
-  constructor(eventPublisher: EventPublisher, eventProvider: EventProvider) {
+  constructor(
+      deviceAttributeRepository: IDeviceAttributeRepository,
+      eventProvider: EventProvider,
+      eventPublisher: EventPublisher ) {
     this.eventPublisher = eventPublisher;
     this.eventProvider = eventProvider;
+    this.deviceAttributeRepository = deviceAttributeRepository;
     this.eventProvider.onNewEvent((event: Event) => {
       logger.info({ event }, 'New Event');
       if (event.data !== undefined && event.data[0] === '{') {
@@ -106,6 +111,42 @@ class HeadLessManagers {
       name: SPARK_SERVER_EVENTS[method],
     });
     return answer;
+  }
+  public claimDevice = async (
+    deviceID: string,
+    userID: string,
+  ): Promise<DeviceAttributes> => {
+    // todo check: we may not need to get attributes from db here.
+    let attributes = await this.deviceAttributeRepository.getByID(deviceID);
+    let claim = true;
+    if (!attributes) {
+      logger.warn('No device found');
+      claim = false;
+    }
+    if (attributes.ownerID && attributes.ownerID !== userID) {
+      logger.warn('The device belongs to someone else, reassign to me');
+    }
+
+    if (attributes.ownerID && attributes.ownerID === userID) {
+      logger.warn('The device is already claimed.');
+      claim = false;
+    }
+
+    if (claim) {
+      logger.info({deviceID}, 'Claiming device');
+      // update connected device attributes
+      await this.eventPublisher.publishAndListenForResponse({
+        context: { attributes: { ownerID: userID }, deviceID },
+        name: SPARK_SERVER_EVENTS.UPDATE_DEVICE_ATTRIBUTES,
+      });
+
+      // todo check: we may not need to update attributes in db here.
+      await this.deviceAttributeRepository.updateByID(deviceID, {
+        ownerID: userID,
+      });
+      attributes = await this.deviceAttributeRepository.getByID(deviceID);
+    }
+    return attributes;
   }
 }
 
