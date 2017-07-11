@@ -13,6 +13,7 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
 Object.defineProperty(exports, "__esModule", { value: true });
 /** */
 const constitute_1 = require("constitute");
+const fs = require("fs");
 const spark_server_1 = require("spark-server");
 const headlessmanager_1 = require("./headlessmanager");
 const logger_1 = require("./lib/logger");
@@ -26,23 +27,58 @@ container.bindClass('HeadLessManagers', headlessmanager_1.default, [
     'EVENT_PROVIDER',
     'EventPublisher',
 ]);
-const deviceServer = container.constitute('DeviceServer');
-deviceServer.start();
+function parseDir(directory) {
+    return new Promise((resolve, reject) => {
+        fs.readdir(`${directory}`, (err, files) => {
+            if (err) {
+                return reject(err + '' + directory);
+            }
+            resolve(Promise.all(files
+                .filter((filename) => ('' + filename).match(/.pub.pem$/) !== null)
+                .map((filename) => {
+                return Promise.resolve(filename.substr(0, 24));
+            })));
+        });
+    });
+}
+function prepareManager() {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            let user = yield users.getByUsername('admin');
+            if (!user) {
+                user = yield users.createWithCredentials({ username: 'admin', password: 'admin' }, 'administrator');
+                logger.info({ user }, 'Admin was created');
+            }
+            logger.info({ id: user.id }, 'Readed Admin, looking up deviceKeys');
+            const devices = yield parseDir('./data/deviceKeys/');
+            logger.info({ count: devices.length }, 'Keyfiles found');
+            for (const deviceID of devices) {
+                const dev = yield manager.getDevice(deviceID);
+                if (dev) {
+                    logger.info({ deviceID }, 'Found device');
+                    if (dev.ownerID !== user.id) {
+                        logger.info({ existingOwnerID: dev.ownerID }, 'Claiming for admin');
+                        yield manager.claimDevice(deviceID, user.id);
+                    }
+                }
+                else {
+                    logger.warn({ deviceID }, 'Device not found, prepare for admin');
+                    yield manager.initDevice(deviceID, user.id);
+                }
+            }
+        }
+        catch (err) {
+            logger.error({ err }, 'Error');
+        }
+        return Promise.resolve(true);
+    });
+}
 const users = container.constitute('UserRepository');
 const manager = container.constitute('HeadLessManagers');
 (() => __awaiter(this, void 0, void 0, function* () {
-    try {
-        let user = yield users.getByUsername('admin');
-        if (!user) {
-            user = yield users.createWithCredentials({ username: 'admin', password: 'admin' }, 'administrator');
-            logger.info({ user }, ' Admin was created');
-        }
-        logger.info({ id: user.id }, ' Readed Admin');
-        manager.claimDevice('3d004b001051353338363333', user.id);
-    }
-    catch (err) {
-        logger.error({ err }, 'Error');
-    }
+    yield prepareManager();
+    const deviceServer = container.constitute('DeviceServer');
+    deviceServer.start();
 }))();
 logger.info('Started');
 pmanager_1.default.on('exit', () => logger.info('Should stop deviceServer.'));

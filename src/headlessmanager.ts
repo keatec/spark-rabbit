@@ -23,7 +23,11 @@ class HeadLessManagers {
     this.eventProvider = eventProvider;
     this.deviceAttributeRepository = deviceAttributeRepository;
     this.eventProvider.onNewEvent((event: Event) => {
-      logger.info({ event }, 'New Event');
+      logger.info({
+          data: (event.name.substr(0, 6) === 'spark/') ? event.data : 'JSON?',
+          deviceID: event.deviceID,
+          event: event.name,
+      }, 'Event');
       if (event.data !== undefined && event.data[0] === '{') {
         this.rabbit.send(`JEV_${event.name}`, event);
       } else {
@@ -111,6 +115,30 @@ class HeadLessManagers {
       name: SPARK_SERVER_EVENTS[method],
     });
     return answer;
+  }
+  public getDevice = async (deviceID: string): Promise<DeviceAttributes> => {
+    return this.deviceAttributeRepository.getByID(deviceID);
+  }
+  public initDevice = async (deviceID: string, userID: string) => {
+    const attributes = await this.deviceAttributeRepository.getByID(deviceID);
+    if (attributes) {
+      logger.warn({ deviceID }, 'InitiDevice, Device already exists');
+      if ( attributes.ownerID !== userID ) {
+        logger.info({deviceID, existingOwner: attributes.ownerID}, 'Claiming device during init');
+        await this.eventPublisher.publishAndListenForResponse({
+          context: { attributes: { ownerID: userID }, deviceID },
+          name: SPARK_SERVER_EVENTS.UPDATE_DEVICE_ATTRIBUTES,
+        });
+
+        await this.deviceAttributeRepository.updateByID(deviceID, {
+          ownerID: userID,
+        });
+      }
+    } else {
+        await this.deviceAttributeRepository.updateByID(deviceID, {
+          ownerID: userID,
+        });
+    }
   }
   public claimDevice = async (
     deviceID: string,

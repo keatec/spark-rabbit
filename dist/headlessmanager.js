@@ -29,6 +29,30 @@ class HeadLessManagers {
             });
             return answer;
         });
+        this.getDevice = (deviceID) => __awaiter(this, void 0, void 0, function* () {
+            return this.deviceAttributeRepository.getByID(deviceID);
+        });
+        this.initDevice = (deviceID, userID) => __awaiter(this, void 0, void 0, function* () {
+            const attributes = yield this.deviceAttributeRepository.getByID(deviceID);
+            if (attributes) {
+                logger.warn({ deviceID }, 'InitiDevice, Device already exists');
+                if (attributes.ownerID !== userID) {
+                    logger.info({ deviceID, existingOwner: attributes.ownerID }, 'Claiming device during init');
+                    yield this.eventPublisher.publishAndListenForResponse({
+                        context: { attributes: { ownerID: userID }, deviceID },
+                        name: spark_protocol_1.SPARK_SERVER_EVENTS.UPDATE_DEVICE_ATTRIBUTES,
+                    });
+                    yield this.deviceAttributeRepository.updateByID(deviceID, {
+                        ownerID: userID,
+                    });
+                }
+            }
+            else {
+                yield this.deviceAttributeRepository.updateByID(deviceID, {
+                    ownerID: userID,
+                });
+            }
+        });
         this.claimDevice = (deviceID, userID) => __awaiter(this, void 0, void 0, function* () {
             // todo check: we may not need to get attributes from db here.
             let attributes = yield this.deviceAttributeRepository.getByID(deviceID);
@@ -63,7 +87,11 @@ class HeadLessManagers {
         this.eventProvider = eventProvider;
         this.deviceAttributeRepository = deviceAttributeRepository;
         this.eventProvider.onNewEvent((event) => {
-            logger.info({ event }, 'New Event');
+            logger.info({
+                data: (event.name.substr(0, 6) === 'spark/') ? event.data : 'JSON?',
+                deviceID: event.deviceID,
+                event: event.name,
+            }, 'Event');
             if (event.data !== undefined && event.data[0] === '{') {
                 this.rabbit.send(`JEV_${event.name}`, event);
             }
