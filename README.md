@@ -22,7 +22,7 @@ Additional Ìnformations
 * Usermanagment is reduced to one user (named '```admin```'). The user is created (if needed)
 * On startup all devices with a .pub.pem file  in ```./data/deviceKeys``` directory will be claimed or prepared to this user
 
-Note: The System is able to start with plain Database (empty DB directory) and will create users and devices automatically. (Please note: DeviceKeys and ServerKey are needed on the specific locations)
+Note: The System is able to start with a clean Database (empty DB directory) and will create users and devices automatically. (Please note: DeviceKeys and ServerKey are needed on the specific locations)
 
 Note: Starting with an empty database directory is sometimes needed, if the server crashes by accessing the Database (cause of changed database layer) 
 
