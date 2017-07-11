@@ -8,7 +8,9 @@ const logger = Logger.createModuleLogger(module);
 const devices = {};
 
 /**
- * Provides an interface to Spark-Server using Rabbit Queues
+ * Provides an Interface to Spark, based von Rabbit
+ *
+ * @class HeadLessManagers
  */
 class HeadLessManagers {
   private eventPublisher: EventPublisher;
@@ -105,7 +107,11 @@ class HeadLessManagers {
       },
     }, 'HLM');
   }
-
+  /**
+   * Start a SPARKSERVER Event using the Data provided
+   *
+   * @memberof HeadLessManagers
+   */
   public run = async (method: string, context: IData): Promise<IData> => {
     if (SPARK_SERVER_EVENTS[method] === undefined) {
       return Promise.reject(`Not a SparkServer Method ${method}`);
@@ -116,9 +122,19 @@ class HeadLessManagers {
     });
     return answer;
   }
+  /**
+   * get current Attributes based on DeviceID (directly from Storage Interface)
+   *
+   * @memberof HeadLessManagers
+   */
   public getDevice = async (deviceID: string): Promise<DeviceAttributes> => {
     return this.deviceAttributeRepository.getByID(deviceID);
   }
+  /**
+   * Assign a user to a device, if the device is not found, a plain device will be created
+   *
+   * @memberof HeadLessManagers
+   */
   public initDevice = async (deviceID: string, userID: string) => {
     const attributes = await this.deviceAttributeRepository.getByID(deviceID);
     if (attributes) {
@@ -129,7 +145,6 @@ class HeadLessManagers {
           context: { attributes: { ownerID: userID }, deviceID },
           name: SPARK_SERVER_EVENTS.UPDATE_DEVICE_ATTRIBUTES,
         });
-
         await this.deviceAttributeRepository.updateByID(deviceID, {
           ownerID: userID,
         });
@@ -140,6 +155,11 @@ class HeadLessManagers {
         });
     }
   }
+  /**
+   * Claim an existing device to the user provided
+   * (original code from Spark-Server)
+   * @memberof HeadLessManagers
+   */
   public claimDevice = async (
     deviceID: string,
     userID: string,

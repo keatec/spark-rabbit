@@ -5,23 +5,33 @@
 /** */
 import { Container } from 'constitute';
 import fs = require ('fs');
-import { defaultBindings, DeviceAttributes } from 'spark-server';
+import { defaultBindings, DeviceAttributes, DeviceServer } from 'spark-server';
 import HeadLessManagers from './headlessmanager';
 import Logger from './lib/logger';
-import { default as pManager } from './lib/pmanager';
 import settings from './settings';
-
 const logger = Logger.createModuleLogger(module);
 
+/**
+ * Create Global Container
+ */
 const container = new Container();
 defaultBindings(container, settings);
 
+/**
+ * Propagate HeadLessManager
+ */
 container.bindClass('HeadLessManagers', HeadLessManagers, [
     'DeviceAttributeRepository',
     'EVENT_PROVIDER',
     'EventPublisher',
 ]);
 
+/**
+ * Parse Directory for KeyFiles and answer a List of DeviceID's
+ *
+ * @param {string} directory
+ * @returns {Promise<string[]>}
+ */
 function parseDir(directory: string): Promise<string[]> {
     return new Promise((resolve, reject) => {
         fs.readdir(`${directory}`, (err: NodeJS.ErrnoException, files: string[]) => {
@@ -39,6 +49,12 @@ function parseDir(directory: string): Promise<string[]> {
     });
 }
 
+/**
+ * Prepare current Storage
+ * - create admin user, if not found
+ * - read all keyfiles from Directory and prepare / claim the devices to admin user
+ * @returns {Promise<boolean>}
+ */
 async function prepareManager(): Promise<boolean> {
     try {
         let user = await users.getByUsername('admin');
@@ -62,22 +78,23 @@ async function prepareManager(): Promise<boolean> {
                 await manager.initDevice (deviceID, user.id);
             }
         }
+        return Promise.resolve(true);
     } catch ( err ) {
         logger.error({err}, 'Error');
     }
-    return Promise.resolve(true);
+    return Promise.reject('Error');
 }
 
 const users = container.constitute('UserRepository');
 
 const manager: HeadLessManagers = container.constitute('HeadLessManagers');
 
+/**
+ * Startup Squenz.
+ * Start Server, after Storage is prepared with existing KeyFiles
+ */
 (async () => {
     await prepareManager();
-    const deviceServer = container.constitute('DeviceServer');
+    const deviceServer: DeviceServer = container.constitute('DeviceServer');
     deviceServer.start();
 })();
-
-logger.info('Started');
-
-pManager.on('exit', () => logger.info('Should stop deviceServer.'));

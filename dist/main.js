@@ -17,16 +17,27 @@ const fs = require("fs");
 const spark_server_1 = require("spark-server");
 const headlessmanager_1 = require("./headlessmanager");
 const logger_1 = require("./lib/logger");
-const pmanager_1 = require("./lib/pmanager");
 const settings_1 = require("./settings");
 const logger = logger_1.default.createModuleLogger(module);
+/**
+ * Create Global Container
+ */
 const container = new constitute_1.Container();
 spark_server_1.defaultBindings(container, settings_1.default);
+/**
+ * Propagate HeadLessManager
+ */
 container.bindClass('HeadLessManagers', headlessmanager_1.default, [
     'DeviceAttributeRepository',
     'EVENT_PROVIDER',
     'EventPublisher',
 ]);
+/**
+ * Parse Directory for KeyFiles and answer a List of DeviceID's
+ *
+ * @param {string} directory
+ * @returns {Promise<string[]>}
+ */
 function parseDir(directory) {
     return new Promise((resolve, reject) => {
         fs.readdir(`${directory}`, (err, files) => {
@@ -41,6 +52,12 @@ function parseDir(directory) {
         });
     });
 }
+/**
+ * Prepare current Storage
+ * - create admin user, if not found
+ * - read all keyfiles from Directory and prepare / claim the devices to admin user
+ * @returns {Promise<boolean>}
+ */
 function prepareManager() {
     return __awaiter(this, void 0, void 0, function* () {
         try {
@@ -66,20 +83,23 @@ function prepareManager() {
                     yield manager.initDevice(deviceID, user.id);
                 }
             }
+            return Promise.resolve(true);
         }
         catch (err) {
             logger.error({ err }, 'Error');
         }
-        return Promise.resolve(true);
+        return Promise.reject('Error');
     });
 }
 const users = container.constitute('UserRepository');
 const manager = container.constitute('HeadLessManagers');
+/**
+ * Startup Squenz.
+ * Start Server, after Storage is prepared with existing KeyFiles
+ */
 (() => __awaiter(this, void 0, void 0, function* () {
     yield prepareManager();
     const deviceServer = container.constitute('DeviceServer');
     deviceServer.start();
 }))();
-logger.info('Started');
-pmanager_1.default.on('exit', () => logger.info('Should stop deviceServer.'));
 //# sourceMappingURL=main.js.map
