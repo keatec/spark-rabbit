@@ -88,7 +88,7 @@ function prepareManager() {
         catch (err) {
             logger.error({ err }, 'Error');
         }
-        return Promise.reject('Error');
+        return Promise.resolve(true);
     });
 }
 const users = container.constitute('UserRepository');

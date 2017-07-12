@@ -124,12 +124,17 @@ class HeadLessManagers {
                 if (event.data === 'online') {
                     devices[event.deviceID] = true;
                     (() => __awaiter(this, void 0, void 0, function* () {
-                        const attr = yield this.run('GET_DEVICE_ATTRIBUTES', {
-                            deviceID: event.deviceID,
-                        });
-                        attr.firmware = firmwareinfo_1.FirmwareInfo.identify(attr.appHash);
-                        logger.info({ attr }, 'Attributes found');
-                        this.rabbit.send(`DEVICE_STATE`, { online: attr });
+                        try {
+                            const attr = yield this.run('GET_DEVICE_ATTRIBUTES', {
+                                deviceID: event.deviceID,
+                            });
+                            attr.firmware = firmwareinfo_1.FirmwareInfo.identify(attr.appHash);
+                            logger.info({ attr }, 'Attributes found');
+                            this.rabbit.send(`DEVICE_STATE`, { online: attr });
+                        }
+                        catch (err) {
+                            logger.error({ err }, 'Error on processing online Message');
+                        }
                     }))();
                 }
                 if (event.data === 'offline') {

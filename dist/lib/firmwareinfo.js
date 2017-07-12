@@ -57,7 +57,10 @@ setTimeout(() => syncFirmwareImages(), 100).unref();
 setInterval(() => syncFirmwareImages(), 5 * 60 * 1000).unref();
 class FirmwareInfo {
     static identify(appHash) {
-        return knownAppHash[appHash].name;
+        if (knownAppHash[appHash] !== undefined) {
+            return knownAppHash[appHash].name;
+        }
+        return 'unknown-' + appHash + '';
     }
     static getFileBuffer(name) {
         const kn = knownFirmware[name];

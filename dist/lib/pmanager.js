@@ -22,8 +22,6 @@ class PManager extends EventEmitter {
         process.on('unhandledRejection', (reason, p) => {
             this.rabbit.send('LOG_ERROR', { text: 'Unhandled Rejection', at: p, reason, iAm: this.iAm });
             logger.error({ at: p, reason }, 'Unhandled Rejection');
-            logger.error('System is going to halt!');
-            this.halt();
         });
         memwatch.on('leak', (info) => {
             logger.warn({ info }, 'possible Heap-LEAK detected');
