@@ -26,6 +26,7 @@
     "amqplib": "^0.5.1",
     "binary-version-reader": "^0.5.1",
     "bluebird": "^3.5.0",
+    "memwatch-next": "^0.3.0",
     "path": "^0.12.7",
     "spark-protocol": "git+https://github.com/Brewskey/spark-protocol.git#dev",
     "spark-server": "git+https://github.com/Brewskey/spark-server.git#dev",

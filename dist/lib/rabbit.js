@@ -14,7 +14,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const amqp = require("amqplib");
 const logger_1 = require("./logger");
 const uuid = require("uuid");
-const pmanager_1 = require("./pmanager");
+const queueparameters_1 = require("./queueparameters");
 const logger = logger_1.default.createModuleLogger(module);
 const rabbitHost = process.env.RABBIT_PORT_5672_TCP_ADDR || '172.22.17.61';
 const rabbitPort = process.env.RABBIT_PORT_5672_TCP_PORT || 9998;
@@ -22,7 +22,7 @@ const rabbitPort = process.env.RABBIT_PORT_5672_TCP_PORT || 9998;
  * Central Class to interface with an Rabbit
  */
 class RabbitConnector {
-    constructor(receivers, name = 'default') {
+    constructor(receivers, name = 'default', noIncoming = false) {
         this.rabbitIncoming = 'uninitialized';
         this.publishQueue = [];
         this.awaitingAnswer = {};
@@ -35,9 +35,14 @@ class RabbitConnector {
             iNumber = 0;
         }
         RabbitConnector.nameCounter[name] += 1;
-        this.rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
-            ? process.env.HOSTNAME
-            : process.env.COMPUTERNAME}_${name}_${iNumber}`;
+        if (noIncoming) {
+            this.rabbitIncoming = 'NONE';
+        }
+        else {
+            this.rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
+                ? process.env.HOSTNAME
+                : process.env.COMPUTERNAME}_${name}_${iNumber}`;
+        }
         this.newReceivers = receivers;
         setInterval(() => this.maintenance(), 5000).unref();
         setInterval(() => this.processQueues(), 200).unref();
@@ -105,7 +110,7 @@ class RabbitConnector {
                 if (this.queuesInitialized[queueName] === undefined) {
                     yield this.mainchannel.assertQueue(queueName, {
                         arguments: {
-                            'x-message-ttl': 3 * 60 * 1000,
+                            'x-message-ttl': queueparameters_1.QParameters.getTTL(queueName),
                         },
                         durable: false,
                     });
@@ -137,26 +142,29 @@ class RabbitConnector {
             Object.keys(this.receivers).forEach((key) => {
                 this.registerReceiver(key, this.receivers[key]);
             });
-            this.registerReceiver(this.rabbitIncoming, (data, ack) => {
-                logger.debug({ data }, 'Got Incoming');
-                const answer = JSON.parse(data);
-                const answerID = answer.answerID;
-                if (this.awaitingAnswer[answerID] !== undefined) {
-                    const res = this.awaitingAnswer[answerID];
-                    delete this.awaitingAnswer[answerID];
-                    if (answer.error) {
-                        res.reject(answer.error);
+            if (this.rabbitIncoming !== 'NONE') {
+                // Dont register an incomming queue, if this Connector is marked as noIncoming
+                this.registerReceiver(this.rabbitIncoming, (data, ack) => {
+                    logger.debug({ data }, 'Got Incoming');
+                    const answer = JSON.parse(data);
+                    const answerID = answer.answerID;
+                    if (this.awaitingAnswer[answerID] !== undefined) {
+                        const res = this.awaitingAnswer[answerID];
+                        delete this.awaitingAnswer[answerID];
+                        if (answer.error) {
+                            res.reject(answer.error);
+                        }
+                        else {
+                            res.resolve(answer.answer);
+                        }
                     }
                     else {
-                        res.resolve(answer.answer);
+                        logger.warn({ answerID }, 'Received Answer, but answer cant be found');
                     }
-                }
-                else {
-                    logger.warn({ answerID }, 'Received Answer, but answer cant be found');
-                }
-                ack();
-                return false;
-            });
+                    ack();
+                    return false;
+                });
+            }
             this.newReceivers = undefined;
         }
     }
@@ -208,7 +216,7 @@ class RabbitConnector {
             logger.info({ queueName }, `Register Receiver ${queueName}`);
             const info = yield this.mainchannel.assertQueue(queueName, {
                 arguments: {
-                    'x-message-ttl': 3 * 60 * 1000,
+                    'x-message-ttl': queueparameters_1.QParameters.getTTL(queueName),
                 },
                 durable: false,
             });
@@ -265,5 +273,7 @@ class RabbitConnector {
 RabbitConnector.nameCounter = {};
 RabbitConnector.runningInstances = [];
 exports.RabbitConnector = RabbitConnector;
+// Dont move this upwards, cause Rabbit needs to be defined before Calling pManager!
+const pmanager_1 = require("./pmanager");
 pmanager_1.default.on('exit', () => RabbitConnector.onProcessExit());
 //# sourceMappingURL=rabbit.js.map

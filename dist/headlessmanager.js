@@ -15,10 +15,17 @@ const rabbit_1 = require("./lib/rabbit");
 const logger = logger_1.default.createModuleLogger(module);
 const devices = {};
 /**
- * Provides an interface to Spark-Server using Rabbit Queues
+ * Provides an Interface to Spark, based von Rabbit
+ *
+ * @class HeadLessManagers
  */
 class HeadLessManagers {
     constructor(deviceAttributeRepository, eventProvider, eventPublisher) {
+        /**
+         * Start a SPARKSERVER Event using the Data provided
+         *
+         * @memberof HeadLessManagers
+         */
         this.run = (method, context) => __awaiter(this, void 0, void 0, function* () {
             if (spark_protocol_1.SPARK_SERVER_EVENTS[method] === undefined) {
                 return Promise.reject(`Not a SparkServer Method ${method}`);
@@ -29,9 +36,19 @@ class HeadLessManagers {
             });
             return answer;
         });
+        /**
+         * get current Attributes based on DeviceID (directly from Storage Interface)
+         *
+         * @memberof HeadLessManagers
+         */
         this.getDevice = (deviceID) => __awaiter(this, void 0, void 0, function* () {
             return this.deviceAttributeRepository.getByID(deviceID);
         });
+        /**
+         * Assign a user to a device, if the device is not found, a plain device will be created
+         *
+         * @memberof HeadLessManagers
+         */
         this.initDevice = (deviceID, userID) => __awaiter(this, void 0, void 0, function* () {
             const attributes = yield this.deviceAttributeRepository.getByID(deviceID);
             if (attributes) {
@@ -53,6 +70,11 @@ class HeadLessManagers {
                 });
             }
         });
+        /**
+         * Claim an existing device to the user provided
+         * (original code from Spark-Server)
+         * @memberof HeadLessManagers
+         */
         this.claimDevice = (deviceID, userID) => __awaiter(this, void 0, void 0, function* () {
             // todo check: we may not need to get attributes from db here.
             let attributes = yield this.deviceAttributeRepository.getByID(deviceID);

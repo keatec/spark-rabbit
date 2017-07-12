@@ -2,6 +2,7 @@
 import EventEmitter = require('events');
 export declare class PManager extends EventEmitter {
     private halted;
+    private rabbit;
     constructor();
     private halt();
 }

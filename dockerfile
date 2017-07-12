@@ -8,8 +8,6 @@
 #
 FROM mhart/alpine-node:7
 
-RUN apk add --no-cache git
-
 # create the Working Directory
 RUN mkdir -p /usr/src/localCloud
 RUN mkdir -p /usr/src/localCloud/spark-rabbit
@@ -17,7 +15,9 @@ WORKDIR /usr/src/localCloud/spark-rabbit
 
 COPY ./package.json /usr/src/localCloud/spark-rabbit
 
-RUN npm install
+RUN apk add --no-cache git python make gcc g++; \
+    npm install; \
+    apk del python make gcc g++;
 
 COPY ./dist/* /usr/src/localCloud/spark-rabbit/dist/
 COPY ./dist/lib/* /usr/src/localCloud/spark-rabbit/dist/lib/

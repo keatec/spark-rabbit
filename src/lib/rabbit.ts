@@ -5,7 +5,7 @@
 import amqp = require ('amqplib');
 import {default as Logger} from './logger';
 import uuid = require('uuid');
-import { default as pManager } from './pmanager';
+import { QParameters } from './queueparameters';
 
 export type SparkActions =  "GET_DEVICE_ATTRIBUTES" |
                             "FLASH_DEVICE" |
@@ -74,16 +74,20 @@ export class RabbitConnector {
   } = {};
   private mqRunning = true;
 
-  constructor(receivers: IReceivers, name: string = 'default') {
+  constructor(receivers: IReceivers, name: string = 'default', noIncoming: boolean = false) {
     let iNumber = RabbitConnector.nameCounter[name];
     if (iNumber === undefined) {
       RabbitConnector.nameCounter[name] = 0;
       iNumber = 0;
     }
     RabbitConnector.nameCounter[name] += 1;
-    this.rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
-      ? process.env.HOSTNAME
-      : process.env.COMPUTERNAME}_${name}_${iNumber}`;
+    if (noIncoming) {
+      this.rabbitIncoming = 'NONE';
+    } else {
+      this.rabbitIncoming = `INCOMING_${process.env.HOSTNAME !== undefined
+        ? process.env.HOSTNAME
+        : process.env.COMPUTERNAME}_${name}_${iNumber}`;
+    }
     this.newReceivers = receivers;
     setInterval(() => this.maintenance(), 5000).unref();
     setInterval(() => this.processQueues(), 200).unref();
@@ -143,7 +147,7 @@ export class RabbitConnector {
       if (this.queuesInitialized[queueName] === undefined) {
         await this.mainchannel.assertQueue(queueName, {
           arguments: {
-            'x-message-ttl': 3 * 60 * 1000,
+            'x-message-ttl': QParameters.getTTL(queueName),
           },
           durable: false,
         });
@@ -173,24 +177,27 @@ export class RabbitConnector {
       Object.keys(this.receivers).forEach((key: string) => {
         this.registerReceiver(key, this.receivers[key]);
       });
-      this.registerReceiver(this.rabbitIncoming, (data: string, ack: () => void) => {
-        logger.debug({ data }, 'Got Incoming');
-        const answer: IData = JSON.parse(data);
-        const answerID = answer.answerID;
-        if (this.awaitingAnswer[answerID] !== undefined) {
-          const res = this.awaitingAnswer[answerID];
-          delete this.awaitingAnswer[answerID];
-          if (answer.error) {
-            res.reject(answer.error);
+      if (this.rabbitIncoming !== 'NONE') {
+        // Dont register an incomming queue, if this Connector is marked as noIncoming
+        this.registerReceiver(this.rabbitIncoming, (data: string, ack: () => void) => {
+          logger.debug({ data }, 'Got Incoming');
+          const answer: IData = JSON.parse(data);
+          const answerID = answer.answerID;
+          if (this.awaitingAnswer[answerID] !== undefined) {
+            const res = this.awaitingAnswer[answerID];
+            delete this.awaitingAnswer[answerID];
+            if (answer.error) {
+              res.reject(answer.error);
+            } else {
+              res.resolve(answer.answer);
+            }
           } else {
-            res.resolve(answer.answer);
+            logger.warn({ answerID }, 'Received Answer, but answer cant be found');
           }
-        } else {
-          logger.warn({ answerID }, 'Received Answer, but answer cant be found');
-        }
-        ack();
-        return false;
-      });
+          ack();
+          return false;
+        });
+      }
       this.newReceivers = undefined;
     }
   }
@@ -240,7 +247,7 @@ export class RabbitConnector {
     logger.info({ queueName }, `Register Receiver ${queueName}`);
     const info = await this.mainchannel.assertQueue(queueName, {
         arguments: {
-          'x-message-ttl': 3 * 60 * 1000,
+          'x-message-ttl': QParameters.getTTL( queueName ),
         },
         durable: false,
       });
@@ -290,4 +297,6 @@ export class RabbitConnector {
   }
 }
 
+// Dont move this upwards, cause Rabbit needs to be defined before Calling pManager!
+import { default as pManager } from './pmanager';
 pManager.on('exit', () => RabbitConnector.onProcessExit());

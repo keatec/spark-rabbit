@@ -5,7 +5,16 @@ export interface IReceivers {
 export interface IData {
     [name: string]: any;
 }
+/**
+ * Central Class to interface with an Rabbit
+ */
 export declare class RabbitConnector {
+    /**
+     * Send an exit to all Running Rabbit connectors
+     * Should be called from a surrounding system in case of process Exit
+     * @static
+     * @memberof RabbitConnector
+     */
     static onProcessExit(): void;
     private static nameCounter;
     private static runningInstances;
@@ -18,7 +27,7 @@ export declare class RabbitConnector {
     private receivers;
     private queuesInitialized;
     private mqRunning;
-    constructor(receivers: IReceivers, name?: string);
+    constructor(receivers: IReceivers, name?: string, noIncoming?: boolean);
     sendAction(action: SparkActions, data: IData): Promise<IData>;
     send(queue: string, data: IData): void;
     protected onExit(): void;
