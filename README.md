@@ -10,12 +10,12 @@ This implementation Provides a Server which interfaces **only using a messageque
 
 ## Implementation
 
-Interface is provided
+Interface provided
 
 * Events using incoming EventQueues based on the EventNames
-* An instance (of Spark-Rabbit) initialize with an incomming Queue to send Actions to a particle
+* An instance (of Spark-Rabbit) initialize with an incomming Queue to send Actions to a particle connected to this instance
 
-This repository provides a Client Libary to access the Server using an existing Rabbit instance
+The repository also provides a Client Libary to access the Server using an existing Rabbit instance (```npm run start:client```)
 
 Additional Ìnformations
 
@@ -28,5 +28,17 @@ Note: Starting with an empty database directory is sometimes needed, if the serv
 
 ## Installation
 
-At first use the Server using Docker. A Rabbitinstance needs to running on docker
+* GIT Clone
+* npm install
+* npm run start
+
+Prerquisits
+
+* please install Typescript globlay to compile (if you change code, using ```npm run build```)
+
+On first run the server creates the following directories for storing data about your local cloud:
+
+* ```./data/``` The cloud keys default_key.pem and default_key.pub.pem  
+* ```./data/deviceKeys/``` Device keys (.pub.pem) for each device
+
 
