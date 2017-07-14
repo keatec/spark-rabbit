@@ -273,7 +273,4 @@ class RabbitConnector {
 RabbitConnector.nameCounter = {};
 RabbitConnector.runningInstances = [];
 exports.RabbitConnector = RabbitConnector;
-// Dont move this upwards, cause Rabbit needs to be defined before Calling pManager!
-const pmanager_1 = require("./pmanager");
-pmanager_1.default.on('exit', () => RabbitConnector.onProcessExit());
 //# sourceMappingURL=rabbit.js.map

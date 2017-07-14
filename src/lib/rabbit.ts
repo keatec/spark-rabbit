@@ -296,7 +296,3 @@ export class RabbitConnector {
     }
   }
 }
-
-// Dont move this upwards, cause Rabbit needs to be defined before Calling pManager!
-import { default as pManager } from './pmanager';
-pManager.on('exit', () => RabbitConnector.onProcessExit());
