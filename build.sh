@@ -2,7 +2,7 @@ set -e
 
 tsc
 
-docker build -f dockerfile -t keatec/spark-rabbit:nightly .
+docker build -f dockerfile --no-cache -t keatec/spark-rabbit:nightly .
 
 #docker rm $(docker ps -q -f status=exited) & docker rmi $(docker images -f "dangling=true" -q)
 

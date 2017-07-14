@@ -29,6 +29,7 @@ class HeadLessManagers {
           data: (event.name.substr(0, 6) === 'spark/') ? event.data : 'JSON?',
           deviceID: event.deviceID,
           event: event.name,
+          evx: event,
       }, 'Event');
       if (event.data !== undefined && event.data[0] === '{') {
         this.rabbit.send(`JEV_${event.name}`, event);
