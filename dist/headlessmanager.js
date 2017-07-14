@@ -91,12 +91,13 @@ class HeadLessManagers {
                 claim = false;
             }
             if (claim) {
-                logger.info({ deviceID }, 'Claiming device');
+                logger.info({ deviceID, attributes }, 'Claiming device');
                 // update connected device attributes
-                yield this.eventPublisher.publishAndListenForResponse({
-                    context: { attributes: { ownerID: userID }, deviceID },
-                    name: spark_protocol_1.SPARK_SERVER_EVENTS.UPDATE_DEVICE_ATTRIBUTES,
+                /*await this.eventPublisher.publishAndListenForResponse({
+                  context: { attributes: { ownerID: userID }, deviceID },
+                  name: SPARK_SERVER_EVENTS.UPDATE_DEVICE_ATTRIBUTES,
                 });
+                */
                 // todo check: we may not need to update attributes in db here.
                 yield this.deviceAttributeRepository.updateByID(deviceID, {
                     ownerID: userID,

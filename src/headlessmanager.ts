@@ -186,13 +186,13 @@ class HeadLessManagers {
     }
 
     if (claim) {
-      logger.info({deviceID}, 'Claiming device');
+      logger.info({ deviceID, attributes }, 'Claiming device');
       // update connected device attributes
-      await this.eventPublisher.publishAndListenForResponse({
+      /*await this.eventPublisher.publishAndListenForResponse({
         context: { attributes: { ownerID: userID }, deviceID },
         name: SPARK_SERVER_EVENTS.UPDATE_DEVICE_ATTRIBUTES,
       });
-
+      */
       // todo check: we may not need to update attributes in db here.
       await this.deviceAttributeRepository.updateByID(deviceID, {
         ownerID: userID,

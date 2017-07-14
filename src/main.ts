@@ -86,7 +86,6 @@ async function prepareManager(): Promise<boolean> {
 }
 
 const users = container.constitute('UserRepository');
-
 const manager: HeadLessManagers = container.constitute('HeadLessManagers');
 
 /**
