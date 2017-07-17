@@ -21,6 +21,10 @@ const devices = {};
  */
 class HeadLessManagers {
     constructor(deviceAttributeRepository, eventProvider, eventPublisher) {
+        this.sysactiondevices = (context) => __awaiter(this, void 0, void 0, function* () {
+            logger.info({ context }, 'Running Devices');
+            return Promise.resolve(Object.keys(devices));
+        });
         /**
          * Start a SPARKSERVER Event using the Data provided
          *
@@ -110,6 +114,17 @@ class HeadLessManagers {
         this.eventProvider = eventProvider;
         this.deviceAttributeRepository = deviceAttributeRepository;
         this.eventProvider.onNewEvent((event) => {
+            let device = devices[event.deviceID];
+            if (device === undefined) {
+                device = {
+                    lastSeen: Date.now(),
+                    online: true,
+                };
+                devices[event.deviceID] = device;
+            }
+            else {
+                device.lastSeen = Date.now();
+            }
             logger.info({
                 data: (event.name.substr(0, 6) === 'spark/') ? event.data : 'JSON?',
                 deviceID: event.deviceID,
@@ -124,7 +139,6 @@ class HeadLessManagers {
             }
             if (event.name === 'spark/status') {
                 if (event.data === 'online') {
-                    devices[event.deviceID] = true;
                     (() => __awaiter(this, void 0, void 0, function* () {
                         try {
                             const attr = yield this.run('GET_DEVICE_ATTRIBUTES', {
@@ -132,6 +146,8 @@ class HeadLessManagers {
                             });
                             attr.firmware = firmwareinfo_1.FirmwareInfo.identify(attr.appHash);
                             logger.info({ attr }, 'Attributes found');
+                            device.attributes = attr;
+                            device.lastAttributes = Date.now();
                             this.rabbit.send(`DEVICE_STATE`, { online: attr });
                         }
                         catch (err) {
@@ -140,7 +156,7 @@ class HeadLessManagers {
                     }))();
                 }
                 if (event.data === 'offline') {
-                    devices[event.deviceID] = false;
+                    device.online = false;
                     this.rabbit.send(`DEVICE_STATE`, {
                         offline: { deviceID: event.deviceID },
                     });
@@ -167,7 +183,7 @@ class HeadLessManagers {
                             return;
                         }
                         else {
-                            if (devices[event.context.deviceID] === false) {
+                            if (devices[event.context.deviceID].online) {
                                 logger.warn({ deviceID: event.context.deviceID }, 'Device is currently offline');
                                 ack();
                                 if (event.answerTo !== undefined) {
@@ -195,6 +211,38 @@ class HeadLessManagers {
                             this.rabbit.send(event.answerTo, { error: err.message, answerID: event.answerID });
                         }
                     });
+                }))();
+                return false;
+            },
+            SYS_ACTION: (eventString, ack) => {
+                (() => __awaiter(this, void 0, void 0, function* () {
+                    ack();
+                    let event = {};
+                    try {
+                        event = JSON.parse(eventString);
+                        if (this['action_' + event.action] !== undefined) {
+                            const answer = yield this['sysaction' + event.action](event.context);
+                            if (event.answerTo !== undefined) {
+                                this.rabbit.send(event.answerTo, { answer, answerID: event.answerID });
+                            }
+                        }
+                        else {
+                            if (event.answerTo !== undefined) {
+                                this.rabbit.send(event.answerTo, { answerID: event.answerID,
+                                    error: 'Action was not found for SYS_ACTION ',
+                                });
+                            }
+                        }
+                    }
+                    catch (e) {
+                        if (event.answerTo !== undefined) {
+                            this.rabbit.send(event.answerTo, { answerID: event.answerID,
+                                error: 'Error on executing SYS_ACTION ' + event.action + ('' + JSON.stringify(e)) });
+                        }
+                        else {
+                            logger.error({ event, eventString }, ' Error Executing SysAction');
+                        }
+                    }
                 }))();
                 return false;
             },

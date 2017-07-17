@@ -76,6 +76,22 @@ class RabbitConnector {
             });
         });
     }
+    sendSysAction(action, data) {
+        return new Promise((resolve, reject) => {
+            const answerID = uuid.v4();
+            this.awaitingAnswer[answerID] = {
+                reject,
+                resolve,
+                timeout: Date.now() + 5000,
+            };
+            this.sendInternalAsAction('SYS_ACTION', {
+                action,
+                answerID,
+                answerTo: this.rabbitIncoming,
+                context: data,
+            });
+        });
+    }
     send(queue, data) {
         this.publishQueue.push({ queue, data });
     }

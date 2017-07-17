@@ -5,7 +5,16 @@ import Logger from './lib/logger';
 import { IData, RabbitConnector } from './lib/rabbit';
 const logger = Logger.createModuleLogger(module);
 
-const devices = {};
+interface IDeviceInfo {
+  attributes?: DeviceAttributes;
+  lastSeen: number;
+  lastAttributes?: number;
+  online: boolean;
+}
+
+const devices: {
+  [name: string]: IDeviceInfo;
+}  = {};
 
 /**
  * Provides an Interface to Spark, based von Rabbit
@@ -25,6 +34,16 @@ class HeadLessManagers {
     this.eventProvider = eventProvider;
     this.deviceAttributeRepository = deviceAttributeRepository;
     this.eventProvider.onNewEvent((event: Event) => {
+      let device = devices[event.deviceID];
+      if (device === undefined) {
+        device = {
+          lastSeen: Date.now(),
+          online: true,
+        };
+        devices[event.deviceID] = device;
+      } else {
+        device.lastSeen = Date.now();
+      }
       logger.info({
           data: (event.name.substr(0, 6) === 'spark/') ? event.data : 'JSON?',
           deviceID: event.deviceID,
@@ -38,7 +57,6 @@ class HeadLessManagers {
       }
       if (event.name === 'spark/status') {
         if (event.data === 'online') {
-          devices[event.deviceID] = true;
           (async () => {
             try {
               const attr = await this.run('GET_DEVICE_ATTRIBUTES', {
@@ -46,6 +64,8 @@ class HeadLessManagers {
               });
               attr.firmware = FirmwareInfo.identify(attr.appHash);
               logger.info({ attr }, 'Attributes found');
+              device.attributes = attr;
+              device.lastAttributes = Date.now();
               this.rabbit.send(`DEVICE_STATE`, { online: attr });
             } catch (err) {
               logger.error({err}, 'Error on processing online Message');
@@ -53,7 +73,7 @@ class HeadLessManagers {
           })();
         }
         if (event.data === 'offline') {
-          devices[event.deviceID] = false;
+          device.online = false;
           this.rabbit.send(`DEVICE_STATE`, {
             offline: { deviceID: event.deviceID },
           });
@@ -79,7 +99,7 @@ class HeadLessManagers {
               }
               return;
             } else {
-              if (devices[event.context.deviceID] === false) {
+              if (devices[event.context.deviceID].online) {
                 logger.warn({ deviceID: event.context.deviceID }, 'Device is currently offline');
                 ack();
                 if (event.answerTo !== undefined) {
@@ -110,7 +130,40 @@ class HeadLessManagers {
         })();
         return false;
       },
+      SYS_ACTION: (eventString: string, ack: () => void): boolean => {
+        (async () => {
+          ack();
+          let event: IData = {};
+          try {
+            event = JSON.parse(eventString);
+            if (this['action_' + event.action] !== undefined) {
+                  const answer: IData = await this['sysaction' + event.action](event.context);
+                  if (event.answerTo !== undefined) {
+                    this.rabbit.send(event.answerTo, { answer, answerID: event.answerID });
+                  }
+            } else {
+                if (event.answerTo !== undefined) {
+                  this.rabbit.send(event.answerTo, { answerID: event.answerID,
+                      error: 'Action was not found for SYS_ACTION ',
+                  });
+                }
+            }
+          } catch (e) {
+            if (event.answerTo !== undefined) {
+              this.rabbit.send(event.answerTo, { answerID: event.answerID,
+                  error: 'Error on executing SYS_ACTION '  +  event.action + ('' + JSON.stringify(e))});
+            } else {
+              logger.error({ event, eventString }, ' Error Executing SysAction');
+            }
+          }
+        })();
+        return false;
+      },
     }, 'HLM');
+  }
+  public sysactiondevices = async (context: IData): Promise<IData> => {
+    logger.info({ context }, 'Running Devices');
+    return Promise.resolve(Object.keys(devices));
   }
   /**
    * Start a SPARKSERVER Event using the Data provided

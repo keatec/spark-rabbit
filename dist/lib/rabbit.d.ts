@@ -29,6 +29,7 @@ export declare class RabbitConnector {
     private mqRunning;
     constructor(receivers: IReceivers, name?: string, noIncoming?: boolean);
     sendAction(action: SparkActions, data: IData): Promise<IData>;
+    sendSysAction(action: string, data: IData): Promise<IData>;
     send(queue: string, data: IData): void;
     protected onExit(): void;
     private sendInternalAsAction(queue, data);
