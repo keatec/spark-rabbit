@@ -136,16 +136,19 @@ class HeadLessManagers {
           let event: IData = {};
           try {
             event = JSON.parse(eventString);
-            if (this['action_' + event.action] !== undefined) {
-                  const answer: IData = await this['sysaction' + event.action](event.context);
-                  if (event.answerTo !== undefined) {
-                    this.rabbit.send(event.answerTo, { answer, answerID: event.answerID });
-                  }
-            } else {
+            let used = false;
+            if (event.action === 'devices') {
+                used = true;
+                const answer: IData = await this.sysActionDevices(event.context);
                 if (event.answerTo !== undefined) {
-                  this.rabbit.send(event.answerTo, { answerID: event.answerID,
-                      error: 'Action was not found for SYS_ACTION ',
-                  });
+                  this.rabbit.send(event.answerTo, { answer, answerID: event.answerID });
+                }
+            }
+            if (!used) {
+                if (event.answerTo !== undefined) {
+                  this.rabbit.send(event.answerTo, { answerID: event.answerID, error: { action: event.action,
+                      text: 'Action was not found for SYS_ACTION ', event, th : this,
+                  }});
                 }
             }
           } catch (e) {
@@ -161,7 +164,7 @@ class HeadLessManagers {
       },
     }, 'HLM');
   }
-  public sysactiondevices = async (context: IData): Promise<IData> => {
+  public sysActionDevices = async (context: IData): Promise<IData> => {
     logger.info({ context }, 'Running Devices');
     return Promise.resolve(Object.keys(devices));
   }

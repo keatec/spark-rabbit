@@ -11,7 +11,7 @@ declare class HeadLessManagers {
     private deviceAttributeRepository;
     private rabbit;
     constructor(deviceAttributeRepository: IDeviceAttributeRepository, eventProvider: EventProvider, eventPublisher: EventPublisher);
-    sysactiondevices: (context: IData) => Promise<IData>;
+    sysActionDevices: (context: IData) => Promise<IData>;
     /**
      * Start a SPARKSERVER Event using the Data provided
      *

@@ -21,7 +21,7 @@ const devices = {};
  */
 class HeadLessManagers {
     constructor(deviceAttributeRepository, eventProvider, eventPublisher) {
-        this.sysactiondevices = (context) => __awaiter(this, void 0, void 0, function* () {
+        this.sysActionDevices = (context) => __awaiter(this, void 0, void 0, function* () {
             logger.info({ context }, 'Running Devices');
             return Promise.resolve(Object.keys(devices));
         });
@@ -220,17 +220,19 @@ class HeadLessManagers {
                     let event = {};
                     try {
                         event = JSON.parse(eventString);
-                        if (this['action_' + event.action] !== undefined) {
-                            const answer = yield this['sysaction' + event.action](event.context);
+                        let used = false;
+                        if (event.action === 'devices') {
+                            used = true;
+                            const answer = yield this.sysActionDevices(event.context);
                             if (event.answerTo !== undefined) {
                                 this.rabbit.send(event.answerTo, { answer, answerID: event.answerID });
                             }
                         }
-                        else {
+                        if (!used) {
                             if (event.answerTo !== undefined) {
-                                this.rabbit.send(event.answerTo, { answerID: event.answerID,
-                                    error: 'Action was not found for SYS_ACTION ',
-                                });
+                                this.rabbit.send(event.answerTo, { answerID: event.answerID, error: { action: event.action,
+                                        text: 'Action was not found for SYS_ACTION ', event, th: this,
+                                    } });
                             }
                         }
                     }

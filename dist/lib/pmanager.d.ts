@@ -5,7 +5,7 @@ export declare class PManager extends EventEmitter {
     private rabbit;
     private iAm;
     constructor();
-    private halt();
+    halt(): void;
 }
 declare const single: PManager;
 export default single;

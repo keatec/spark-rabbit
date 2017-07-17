@@ -34,7 +34,7 @@ export class PManager extends EventEmitter {
             this.rabbit.send('LOG_INFO', { text: 'HEAP Info', data: stats, iAm : this.iAm });
         });
     }
-    private halt() {
+    public halt() {
         if (this.halted) {
             logger.info('Halt already called');
             return;
