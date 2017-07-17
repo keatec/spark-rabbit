@@ -99,7 +99,7 @@ class HeadLessManagers {
               }
               return;
             } else {
-              if (devices[event.context.deviceID].online) {
+              if (!devices[event.context.deviceID].online) {
                 logger.warn({ deviceID: event.context.deviceID }, 'Device is currently offline');
                 ack();
                 if (event.answerTo !== undefined) {
@@ -152,11 +152,10 @@ class HeadLessManagers {
                 }
             }
           } catch (e) {
+            logger.error({ err: e, event, eventString }, ' Error Executing SysAction');
             if (event.answerTo !== undefined) {
               this.rabbit.send(event.answerTo, { answerID: event.answerID,
                   error: 'Error on executing SYS_ACTION '  +  event.action + ('' + JSON.stringify(e))});
-            } else {
-              logger.error({ event, eventString }, ' Error Executing SysAction');
             }
           }
         })();
@@ -166,7 +165,31 @@ class HeadLessManagers {
   }
   public sysActionDevices = async (context: IData): Promise<IData> => {
     logger.info({ context }, 'Running Devices');
-    return Promise.resolve(Object.keys(devices));
+    const answer = {};
+    let adev: IData;
+    let dev: IDeviceInfo;
+    const now = Date.now();
+    Object.keys(devices).map((deviceID) => {
+      adev = {}; dev = devices[deviceID];
+      if (context.online !== undefined) {
+          if (dev.online !== context.online) {
+            dev = undefined;
+          }
+          if (context.online && dev !== undefined) {
+            adev.seconds = Math.round((dev.lastSeen - now) / 100) / 10;
+          }
+      }
+      if (dev !== undefined) {
+        adev.online = dev.online;
+        if (context.attributes !== undefined && dev.attributes !== undefined) {
+          context.attributes.map((name) => {
+            adev[name] = dev.attributes[name];
+          });
+        }
+        answer[deviceID] = adev;
+      }
+    });
+    return Promise.resolve(answer);
   }
   /**
    * Start a SPARKSERVER Event using the Data provided
