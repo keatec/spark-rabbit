@@ -30,9 +30,6 @@ class HeadLessManagers {
             Object.keys(devices).map((deviceID) => {
                 adev = {};
                 dev = devices[deviceID];
-                if (dev === undefined) {
-                    logger.error({ dev, devices }, ' Dev is undefined ');
-                }
                 if (context.online !== undefined) {
                     if (dev.online !== context.online) {
                         dev = undefined;
@@ -48,7 +45,6 @@ class HeadLessManagers {
                             adev[name] = dev.attributes[name];
                         });
                     }
-                    adev.attributes = dev.attributes;
                     answer[deviceID] = adev;
                 }
             });

@@ -28,8 +28,8 @@
     "bluebird": "^3.5.0",
     "memwatch-next": "^0.3.0",
     "path": "^0.12.7",
-    "spark-protocol": "git+https://github.com/keatec/spark-protocol.git#flasher",
-    "spark-server": "git+https://github.com/keatec/spark-server.git#flasher",
+    "spark-protocol": "git+https://github.com/brewskey/spark-protocol.git#dev",
+    "spark-server": "git+https://github.com/brewskey/spark-server.git#dev",
     "typescript": "^2.4.1",
     "uuid": "^3.1.0"
   },
